@@ -1,0 +1,5 @@
+crd_file,ecu_section,line_span,rule_idx,match_score,status,match_type,ecu_match_score,condition_match_score,matched_snippet
+Air-Conditioning Gateway Function_Ver_1_6.txt,3-1-2. Gateway function (conversion from LIN communication to CAN communication),1532-1939,3,1.000,inject,fallback,,,"(3)Input data
+  See ""SUZUKI LIN SPECIFICATION"" for details of LIN data.
+  Table 3-1-16. LIN received data list
+      LIN ID     LIN signal name                                               Data Summa..."

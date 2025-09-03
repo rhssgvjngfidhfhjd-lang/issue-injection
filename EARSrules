@@ -1,0 +1,32 @@
+IF ECU A wait for less than 500ms before send next request to ECU B THEN ECU B can not hanlde the request.
+
+IF ECU A sends a request to  ECU B start a process without previously sending a request to ECU B to stop other communications, THEN the 
+system shall reject the request to start the process.
+
+IF ECU B receives a request from ECU A to forward to another ECU C but sends a response back to ECU A before receiving a response from the ECU C, THEN the system shall prevent ECU B from sending an unconfirmed response to ECU A.
+
+IF ECU A sends request to start process to ECU B without first executing the step "ECU A send request to stop other communicate to ECU B" THEN the ECU A shall reject the process initiation and report a sequence error.
+
+IF ECU A receives a request from the Server that requires input from ECU B and does not wait for the specified waiting 
+time, THEN ECU A shall wait for the specified waiting time before responding to the Server.
+
+IF the specification omits the explicit step "ECU A send request to stop other communicate to ECU B" before process start THEN the ECU A shall treat the process sequence as invalid and not proceed.
+
+IF ECU A does not strictly follow the exact sequence "1) ECU A send request to stop other communicate to ECU B; 2) ECU A send request to start process to ECU B; 3) ECU A send request to check the status of process to ECU B; 4) if status is passed or fail, ECU A send status report to server" THEN the system shall log a sequence error and notify the server.
+
+IF ECU A sends request 1 to ECU B and then sends the next request without executing the step "ECU A wait for 500ms before send next request to ECU B" THEN the ECU B shall reject the request and report a timing issue.
+
+
+IF ECU A does not strictly follow the sequence "1) ECU A send request 1 to ECU B; 2) ECU A wait for 500ms before send next request to ECU B" THEN the system shall treat the request sequence as invalid and notify a timing issue.
+
+IF ECU B executes the step "ECU B response with positive response to ECU A" before executing the step "ECU C accept the request with positive response to ECU B" THEN the ECU B shall reject the sequence and report a sequence error.
+
+IF the specification omits the dependency between the steps "ECU C accept the request with positive response to ECU B" and "ECU B response with positive response to ECU A" THEN the ECU B shall treat the sequence as invalid and not proceed.
+
+IF the sequence "1) Send request 1 from ECU A to ECU B; 2) ECU B forward the request 1 to ECU C; 3) ECU C accept the request with positive response to ECU B; 4) ECU B response with positive response to ECU A" is not strictly followed THEN the system shall log a sequence error and notify the server.
+
+IF the ECU A executes the step "ECU A send request to ECU B when ECU B is ready" without first performing the step "if ECU B is not ready, wait for n second" THEN the ECU A shall reject the request sequence and log a timeout handling error.
+
+IF the specification omits the explicit waiting step "if ECU B is not ready, wait for n second" THEN the ECU A shall assume ECU B is not ready and shall delay sending the request until ECU B confirms readiness.
+
+IF ECU A does not strictly follow the sequence "1) ECU A received request from Server; 2) ECU A check status of ECU B; 3) if ECU B is not ready, wait for n second; 4) ECU A send request to ECU B when ECU B is ready; 5) response the Server with data collected from ECU B" THEN the system shall raise a timeout error and report wait response timeout handling.

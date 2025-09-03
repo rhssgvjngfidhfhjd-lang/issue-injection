@@ -1,0 +1,44 @@
+Issue Injection Trace
+
+Prepared issues (LLM rewrites generated): 5
+Applied to CRD (successfully replaced in file): 3
+
+Applied
+1) Issue ID: ISSUE-001
+   File: CRD/Air-Conditioning Gateway Function_Ver_1_6.txt
+   Section: 3-1-1. Gateway/arbitration function (CAN communication →LIN communication conversion)
+   Line range: 798-805
+   Source rule: Rule 1
+   Status: applied
+
+2) Issue ID: ISSUE-003
+   File: CRD/Air-Conditioning Gateway Function_Ver_1_6.txt
+   Section: 3-1-1. Gateway/arbitration function (CAN communication →LIN communication conversion)
+   Line range: 798-805
+   Source rule: Rule 5
+   Status: applied
+
+3) Issue ID: ISSUE-004
+   File: CRD/Air-Conditioning Gateway Function_Ver_1_6.txt
+   Section: 3-1-3. fault diagnosis output function
+   Line range: 107-114
+   Source rule: Rule 1
+   Status: applied
+
+Prepared but not applied (original paragraph not found at replace time)
+4) Issue ID: ISSUE-002
+   File: CRD/Air-Conditioning Gateway Function_Ver_1_6.txt
+   Section: 3-1-1. Gateway/arbitration function (CAN communication →LIN communication conversion)
+   Line range: 798-805
+   Source rule: Rule 3
+   Status: not applied
+
+5) Issue ID: ISSUE-005
+   File: CRD/Air-Conditioning Gateway Function_Ver_1_6.txt
+   Section: 3-1-3. fault diagnosis output function
+   Line range: 107-114
+   Source rule: Rule 3
+   Status: not applied
+
+
+five injection results were generated, but two of them failed to find an exact match with the original paragraph when the full text was finally written back, and thus failed to be successfully replaced
