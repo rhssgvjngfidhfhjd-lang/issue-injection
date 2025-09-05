@@ -115,10 +115,6 @@ class CRDSection:
         if all(len(ln.strip()) <= 6 for ln in lines if ln.strip()):
             return True
         return False
-    
-    # should add some more rules and restrictions here
-    # e.g. avoid add things in the table of contents, figure captions, tables, lists, etc.
-    # avoid the injection point is too short words
     def find_best_paragraph(self, rule: EARSRule) -> Tuple[str, float, str]:
         """Find the best paragraph for rule injection."""
         best_paragraph = ""
@@ -150,24 +146,20 @@ class CRDSection:
         """Score a paragraph for rule injection suitability."""
         score = 0.0
         
-        # Check for temporal/conditional cues
-        temporal_cues = ['if', 'when', 'while', 'during', 'in case of', 'within', 'until', 'shall']
-        cue_count = sum(1 for cue in temporal_cues if cue.lower() in paragraph.lower())
-        score += cue_count * 0.1
+        # Temporal/conditional cues
+        temporal_cues = ['if', 'when', 'while', 'during', 'shall']
+        score += sum(1 for cue in temporal_cues if cue.lower() in paragraph.lower()) * 0.1
         
-        # Check similarity to rule condition
+        # Similarity to rule condition
         if RAPIDFUZZ_AVAILABLE:
             similarity = fuzz.partial_ratio(paragraph.lower(), rule.condition.lower()) / 100.0
         else:
             similarity = difflib.SequenceMatcher(None, paragraph.lower(), rule.condition.lower()).ratio()
-        
         score += similarity * 0.5
         
-        # Check for technical terms that might be relevant
-        # 应该让llm做？ terms太少
+        # Technical terms
         technical_terms = ['ecu', 'signal', 'communication', 'control', 'status', 'request']
-        term_count = sum(1 for term in technical_terms if term.lower() in paragraph.lower())
-        score += term_count * 0.05
+        score += sum(1 for term in technical_terms if term.lower() in paragraph.lower()) * 0.05
         
         return min(score, 1.0)
 
@@ -407,23 +399,12 @@ class CRDFile:
             # 仅在文档前若干行内考虑目录
             if sec.start_line > 250:
                 return False
-            name = sec.name
-            content = sec.content
-            # 大量点线或页码引导符
-            if re.search(r"\.{5,}", name) or re.search(r"\.{5,}", content):
-                return True
-            # 仅编号无标题（如 1-1、1.1.1 或末尾仅有页码的短行）
-            if re.match(r"^\d+(?:[.-]\d+){1,3}\.?$", name.strip()):
-                return True
-            # 内容过短且缺少明显正文单词（英文/术语），更可能是目录项
-            content_lines = [ln for ln in content.split('\n') if ln.strip()]
-            if len(content_lines) <= 3 and not re.search(r"[A-Za-z]{4,}", " ".join(content_lines)):
-                return True
-            return False
+            # Skip sections with too many dots (TOC markers)
+            if re.search(r"\.{5,}", sec.content):
+                return False
+            return True
         
-        sections = [s for s in sections if not _is_toc_like_section(s)]
-        
-        # 进一步：从第一个“实质性编号标题”开始截断，丢弃其之前的所有分段
+        # 进一步：从第一个"实质性编号标题"开始截断，丢弃其之前的所有分段
         def _is_substantive_numbered_heading(name: str, content: str) -> bool:
             # 形如 1-1. Title 或 1.1 Title 或 1-1-1. Title 等，且有较充分内容
             if re.match(r"^\d+(?:[.-]\d+){0,3}\.?\s+.+$", name.strip()):
@@ -432,7 +413,7 @@ class CRDFile:
                 if len(content_lines) >= 5 or len(content) >= 400:
                     return True
             return False
-        
+
         first_idx = None
         for idx, sec in enumerate(sections):
             if _is_substantive_numbered_heading(sec.name, sec.content):
@@ -534,47 +515,24 @@ Important: Output ONLY the rewritten paragraph, no explanations."""
         return result["choices"][0]["message"]["content"].strip()
     
     def _fallback_rewrite(self, section_paragraph: str, rule_condition: str, rule_response: str) -> str:
-        """Fallback rewrite using simple text manipulation that obeys constraints.
-        - Insert ONLY the condition/event (IF-part)
-        - Replace 'ECU A/B/C' with concrete ECU names from context when possible
-        - Do NOT add requirement words like 'shall/must/should'
-        """
+        """Simple fallback rewrite when LLM is unavailable."""
         text = section_paragraph
-        # Detect ECU names from context
-        ecu_names = []
-        try:
-            ecu_names = re.findall(r"\b([A-Za-z][A-Za-z \-/]* ECU)\b", section_paragraph, flags=re.IGNORECASE)
-        except Exception:
-            ecu_names = []
-        # Build a safe condition string
-        cond = rule_condition or ""
-        # Remove requirement words if they accidentally appear in condition
-        cond = re.sub(r"\b(shall|must|should|will)\b", "", cond, flags=re.IGNORECASE)
-        cond = re.sub(r"\s+", " ", cond).strip()
-        # Map ECU A/B/C to detected names if available, otherwise collapse to 'ECU'
-        mappings = {}
+        
+        # Extract ECU names and build safe condition
+        ecu_names = re.findall(r"\b([A-Za-z][A-Za-z \-/]* ECU)\b", text, re.IGNORECASE)
+        cond = re.sub(r"\b(shall|must|should|will)\b", "", rule_condition or "", re.IGNORECASE).strip()
+        
+        # Map ECU placeholders to real names
         if ecu_names:
-            uniq = []
-            for n in ecu_names:
-                if n not in uniq:
-                    uniq.append(n)
-            if uniq:
-                mappings["ECU A"] = uniq[0]
-            if len(uniq) >= 2:
-                mappings["ECU B"] = uniq[1]
-            if len(uniq) >= 3:
-                mappings["ECU C"] = uniq[2]
-        for placeholder, real in mappings.items():
-            cond = re.sub(rf"\b{re.escape(placeholder)}\b", real, cond)
-        # Any remaining placeholders -> generic 'ECU'
+            for i, placeholder in enumerate(["ECU A", "ECU B", "ECU C"]):
+                if i < len(ecu_names):
+                    cond = cond.replace(placeholder, ecu_names[i])
         cond = re.sub(r"\bECU [A-Z]\b", "ECU", cond)
-        # If nothing to insert, return original
-        if not cond:
-            return text
-        # Append condition as an explanatory clause/new line without requirements wording
-        if not text.endswith("\n"):
-            text = text + "\n"
-        return f"{text}{cond}"
+        
+        # Append condition if valid
+        if cond:
+            return f"{text}\n{cond}" if not text.endswith("\n") else f"{text}{cond}"
+        return text
 
 
 class EARSInjector:
@@ -761,24 +719,16 @@ class EARSInjector:
     
     def _score_section(self, section: CRDSection, rule: EARSRule) -> float:
         """Score a section against a rule."""
-        score = 0.0
+        # Regex matches + fuzzy similarity
+        condition_matches = len(re.findall(rule.normalized_condition, section.content, re.IGNORECASE))
+        response_matches = len(re.findall(rule.normalized_response, section.content, re.IGNORECASE))
         
-        # Check for regex hits
-        condition_matches = re.findall(rule.normalized_condition, section.content, re.IGNORECASE)
-        response_matches = re.findall(rule.normalized_response, section.content, re.IGNORECASE)
-        
-        score += len(condition_matches) * 0.3
-        score += len(response_matches) * 0.3
-        
-        # Check fuzzy similarity
         if RAPIDFUZZ_AVAILABLE:
             similarity = fuzz.partial_ratio(section.content.lower(), rule.condition.lower()) / 100.0
         else:
             similarity = difflib.SequenceMatcher(None, section.content.lower(), rule.condition.lower()).ratio()
         
-        score += similarity * 0.4
-        
-        return min(score, 1.0)
+        return min(condition_matches * 0.3 + response_matches * 0.3 + similarity * 0.4, 1.0)
     
     def inject_rules(self, matches: List[Dict]) -> List[Dict]:
         """Inject rules into matched sections. Limit to top 5 injections per run."""

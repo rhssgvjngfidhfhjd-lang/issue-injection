@@ -103,15 +103,25 @@ def main():
 						)
 						pf.write('\n'.join(diff))
 					md_lines.append(f'### {fname} section_{sec_idx}\n**Injected:**\n{rewritten}\n\n**Context:**\n{best_para}\n')
-	# 写csv
-	with open('matches.csv', 'w', encoding='utf-8', newline='') as cf:
-		writer = csv.writer(cf)
-		writer.writerow(['crd_file', 'ecu_section', 'line_span', 'rule_idx', 'match_score', 'status', 'matched_snippet'])
-		writer.writerows(csv_rows)
-	# 写md
-	if md_lines:
-		with open('injected.md', 'w', encoding='utf-8') as mf:
-			mf.write('\n\n'.join(md_lines))
+	# 写简化trace文件
+	with open('issue_injection_trace.txt', 'w', encoding='utf-8') as tf:
+		tf.write("Issue Injection Trace\n\n")
+		inject_count = len([row for row in csv_rows if row[5] == 'inject'])
+		tf.write(f"Prepared issues (LLM rewrites generated): {len(csv_rows)}\n")
+		tf.write(f"Applied to CRD (successfully replaced in file): {inject_count}\n\n")
+		
+		if inject_count > 0:
+			tf.write("Applied\n")
+			issue_id = 1
+			for i, row in enumerate(csv_rows):
+				if row[5] == 'inject':
+					tf.write(f"{issue_id}) Issue ID: ISSUE-{issue_id:03d}\n")
+					tf.write(f"   File: CRD/{row[0]}\n")
+					tf.write(f"   Section: {row[1]}\n")
+					tf.write(f"   Line range: {row[2]}\n")
+					tf.write(f"   Source rule: Rule {row[3]}\n")
+					tf.write(f"   Status: applied\n\n")
+					issue_id += 1
 
 
 if __name__ == '__main__':

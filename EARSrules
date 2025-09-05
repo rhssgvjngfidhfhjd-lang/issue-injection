@@ -1,14 +1,12 @@
 IF ECU A wait for less than 500ms before send next request to ECU B THEN ECU B can not hanlde the request.
 
-IF ECU A sends a request to  ECU B start a process without previously sending a request to ECU B to stop other communications, THEN the 
-system shall reject the request to start the process.
+IF ECU A sends a request to  ECU B start a process without previously sending a request to ECU B to stop other communications, THEN the system shall reject the request to start the process.
 
 IF ECU B receives a request from ECU A to forward to another ECU C but sends a response back to ECU A before receiving a response from the ECU C, THEN the system shall prevent ECU B from sending an unconfirmed response to ECU A.
 
 IF ECU A sends request to start process to ECU B without first executing the step "ECU A send request to stop other communicate to ECU B" THEN the ECU A shall reject the process initiation and report a sequence error.
 
-IF ECU A receives a request from the Server that requires input from ECU B and does not wait for the specified waiting 
-time, THEN ECU A shall wait for the specified waiting time before responding to the Server.
+IF ECU A receives a request from the Server that requires input from ECU B and does not wait for the specified waiting time, THEN ECU A shall wait for the specified waiting time before responding to the Server.
 
 IF the specification omits the explicit step "ECU A send request to stop other communicate to ECU B" before process start THEN the ECU A shall treat the process sequence as invalid and not proceed.
 

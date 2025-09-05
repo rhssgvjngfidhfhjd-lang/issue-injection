@@ -1,0 +1,147 @@
+Sample ECU Function Specification
+=====================================
+
+This is a sample/fake CRD document for demonstration purposes only.
+It contains the necessary structure for the EARS injection tool to work,
+but does not contain any confidential or proprietary information.
+
+1. Document Information
+=======================
+
+Document Version: 1.0
+Last Updated: 2024-01-01
+Purpose: Sample document for EARS rule injection testing
+
+2. System Overview
+==================
+
+This document describes the functional specifications for a sample ECU system.
+The ECU system consists of multiple electronic control units that communicate
+with each other to perform various automotive functions.
+
+3. Functional Specifications
+============================
+
+3-1. Gateway Function Control
+=============================
+
+The gateway function controls communication between different ECU components
+in the automotive system.
+
+3-1-1. Gateway/arbitration function (CAN communication to LIN communication conversion)
+=====================================================================================
+
+(1) Overview
+The gateway ECU receives CAN messages from the main vehicle network and converts
+them to LIN protocol messages for communication with subsystem ECUs.
+
+(2) Input data
+The gateway ECU receives the following CAN signals:
+- Vehicle speed signal
+- Engine status signal
+- Power mode signal
+
+(3) Processing
+When the gateway ECU receives a CAN message, it performs the following steps:
+1. Validate the message format
+2. Check the message ID
+3. Convert the data format from CAN to LIN
+4. Send the LIN message to the target ECU
+
+(4) Output data
+The gateway ECU sends LIN messages containing:
+- Processed vehicle data
+- System status information
+- Control commands
+
+3-1-2. Gateway function (LIN communication to CAN communication conversion)
+==========================================================================
+
+(1) Overview
+The gateway ECU receives LIN messages from subsystem ECUs and converts them
+to CAN protocol messages for transmission on the main vehicle network.
+
+(2) Input data
+The gateway ECU receives LIN messages from various subsystem ECUs including:
+- Climate control ECU
+- Seat control ECU
+- Lighting control ECU
+
+Table 3-1-16. LIN received data list
+LIN ID    LIN signal name                     Data Summary
+  2A      Climate Control Status              Climate system operational status
+  2B      Seat Position Data                  Current seat position information
+  2C      Light Status                        Lighting system status information
+
+(3) Processing
+When receiving LIN messages, the gateway ECU:
+1. Validates the LIN message integrity
+2. Extracts the relevant data
+3. Converts the data format to CAN
+4. Transmits the CAN message on the vehicle network
+
+(4) Output data
+The converted CAN messages contain:
+- Subsystem status information
+- Diagnostic data
+- Error codes if applicable
+
+3-1-3. Fault diagnosis output function
+=====================================
+
+(1) Overview
+The system monitors communication status and detects faults in the ECU network.
+
+(2) Fault detection
+The system detects the following types of faults:
+- Communication timeouts
+- Message format errors
+- ECU offline conditions
+
+(3) Diagnostic output
+When a fault is detected, the system:
+1. Logs the fault information
+2. Sets appropriate diagnostic trouble codes
+3. Notifies other ECUs if necessary
+
+4. Communication Protocols
+==========================
+
+4-1. CAN Communication
+======================
+
+The system uses CAN 2.0B protocol with the following characteristics:
+- Baud rate: 500 kbps
+- Extended ID format supported
+- Error handling according to CAN specification
+
+4-2. LIN Communication
+=====================
+
+The system uses LIN 2.1 protocol with:
+- Baud rate: 19200 bps
+- Master-slave configuration
+- Automatic checksum validation
+
+5. Error Handling
+================
+
+5-1. Communication Errors
+=========================
+
+When communication errors occur:
+1. The system attempts to re-establish communication
+2. If unsuccessful, appropriate error codes are set
+3. Fallback modes are activated if available
+
+5-2. System Recovery
+===================
+
+The system includes recovery mechanisms:
+- Automatic restart procedures
+- Safe mode operations
+- Error logging for diagnostic purposes
+
+Note: This is a simplified sample document created for testing purposes.
+Real CRD documents would contain much more detailed specifications,
+timing diagrams, and comprehensive technical details.
