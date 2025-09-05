@@ -1,0 +1,14 @@
+# Core dependencies
+requests>=2.31.0
+openai>=1.3.0
+
+# Optional dependencies for better performance
+rapidfuzz>=3.0.0
+
+# Development and testing (optional)
+pytest>=7.0.0
+
+# Note: This project requires Ollama to be installed and running locally
+# Install Ollama from: https://ollama.ai/
+# Required model: qwen3:8b
+# Run: ollama pull qwen3:8b
