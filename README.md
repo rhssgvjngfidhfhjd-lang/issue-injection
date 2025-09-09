@@ -27,8 +27,8 @@
    This interactive demo will guide you through the basic functionality.
 
 2. **CRD File Placement**: 
-   - For **demo**: Use the local `Issue-Injection/CRD/` folder (contains sample files)
-   - For **real usage**: Place your actual CRD files in `../CRD/` (same level as Issue-Injection folder)
+   - For **demo**: Use the local `Issue-Injection/CRD/` folder (contains sample files for testing)
+   - For **real usage**: Place your actual CRD files in `/home/lexi/CRD/` (default production directory)
 
 ### Project Structure
 ```
@@ -39,10 +39,10 @@ project-root/
 │   ├── demo.py             # Interactive demo
 │   ├── EARSrules.txt       # EARS rules definition
 │   ├── requirements.txt    # Python dependencies
-│   ├── CRD/                # Demo CRD files (for testing only)
+│   ├── CRD/                # Sample CRD files (for demo/testing only)
 │   │   └── Sample_ECU_Function_Specification.txt
 │   └── README.md
-└── CRD/                    # Actual CRD documents directory (for real usage)
+└── /home/lexi/CRD/         # Production CRD documents directory (default)
     └── Your_Actual_CRD_Files.txt
 ```
 
@@ -82,7 +82,7 @@ Sections in Sample_ECU_Function_Specification.txt:
 
 ### Path Configuration
 - **Demo mode**: Uses local `./CRD` folder for sample files
-- **Production mode**: Uses `../CRD` folder (same level as Issue-Injection)
+- **Production mode**: Uses `/home/lexi/CRD` folder (default production directory)
 - **Custom paths**: Use `--crd-dir` argument to specify custom CRD location
 
 ### Advanced Options

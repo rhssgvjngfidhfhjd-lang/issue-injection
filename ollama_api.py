@@ -65,7 +65,7 @@ def main():
 	import argparse
 	parser = argparse.ArgumentParser(description="EARS Rule Injection using Ollama API")
 	parser.add_argument("--rules", default="EARSrules.txt", help="EARS rules file (default: EARSrules.txt)")
-	parser.add_argument("--crd-dir", default="../CRD", help="Directory containing CRD files (default: ../CRD)")
+	parser.add_argument("--crd-dir", default="/home/lexi/CRD", help="Directory containing CRD files (default: /home/lexi/CRD)")
 	parser.add_argument("--output-dir", default="output", help="Output directory (default: output)")
 	
 	args = parser.parse_args()

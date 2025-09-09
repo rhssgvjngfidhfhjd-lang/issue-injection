@@ -12,7 +12,7 @@ from inject_ears import EARSInjector
 def main():
     parser = argparse.ArgumentParser(description="Run EARS Rule Injection and generate complete modified CRD file")
     parser.add_argument("--rules", default="EARSrules.txt", help="EARS rules file (default: EARSrules.txt)")
-    parser.add_argument("--crd-dir", default="../CRD", help="Directory containing CRD files (default: ../CRD)")
+    parser.add_argument("--crd-dir", default="/home/lexi/CRD", help="Directory containing CRD files (default: /home/lexi/CRD)")
     parser.add_argument("--output-dir", default="output", help="Output directory (default: output)")
     parser.add_argument("--threshold", type=float, default=0.3, help="Match threshold (default: 0.3)")
     
