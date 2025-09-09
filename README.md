@@ -1,6 +1,24 @@
 
 ## Quick Start
 
+### Prerequisites
+1. **Install Python dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Install and setup Ollama**:
+   ```bash
+   # Install Ollama (visit https://ollama.ai/ for installation instructions)
+   # Pull the required Qwen model (optimized for this project)
+   ollama pull qwen3:8b
+   ```
+
+3. **Start Ollama service**:
+   ```bash
+   ollama serve
+   ```
+
 ### For New Users
 1. **Run the demo script** to test the tool with sample data:
    ```bash
@@ -8,19 +26,24 @@
    ```
    This interactive demo will guide you through the basic functionality.
 
-2. **Check the CRD directory**: The `CRD/` folder contains a sample CRD file for testing. 
-   In real usage, replace this with your actual CRD documents.
+2. **CRD File Placement**: 
+   - For **demo**: Use the local `Issue-Injection/CRD/` folder (contains sample files)
+   - For **real usage**: Place your actual CRD files in `../CRD/` (same level as Issue-Injection folder)
 
-### File Structure
+### Project Structure
 ```
-Issue-Injection/
-├── inject_ears.py          # Main injection script
-├── run_injection.py        # Simplified runner
-├── demo.py                 # Interactive demo
-├── EARSrules              # EARS rules definition
-├── CRD/                   # CRD documents directory
-│   └── Sample_ECU_Function_Specification.txt
-└── README.md
+project-root/
+├── Issue-Injection/        # Main project folder
+│   ├── inject_ears.py      # Main injection script
+│   ├── run_injection.py    # Simplified runner
+│   ├── demo.py             # Interactive demo
+│   ├── EARSrules.txt       # EARS rules definition
+│   ├── requirements.txt    # Python dependencies
+│   ├── CRD/                # Demo CRD files (for testing only)
+│   │   └── Sample_ECU_Function_Specification.txt
+│   └── README.md
+└── CRD/                    # Actual CRD documents directory (for real usage)
+    └── Your_Actual_CRD_Files.txt
 ```
 
 ## Advanced Usage
@@ -52,6 +75,17 @@ Sections in Sample_ECU_Function_Specification.txt:
 
 ## Configuration
 
+### LLM Model Settings
+- **Model**: Uses `qwen3:8b` for all LLM operations
+- **Anti-thinking optimization**: Prompts are optimized to prevent Qwen from outputting thinking processes
+- **JSON parsing**: Robust parsing with automatic cleaning of any thinking content
+
+### Path Configuration
+- **Demo mode**: Uses local `./CRD` folder for sample files
+- **Production mode**: Uses `../CRD` folder (same level as Issue-Injection)
+- **Custom paths**: Use `--crd-dir` argument to specify custom CRD location
+
+### Advanced Options
 - **Threshold adjustment**: Modify matching sensitivity in the scripts
 - **Custom section filtering**: Use `--section-filter` regex patterns
 - **Rule selection**: Use `--rule-idx` to test specific rules

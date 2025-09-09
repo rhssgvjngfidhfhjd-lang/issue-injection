@@ -5,19 +5,33 @@ Run EARS Rule Injection and generate complete modified CRD file
 
 import os
 import sys
+import argparse
 from pathlib import Path
 from inject_ears import EARSInjector
 
 def main():
+    parser = argparse.ArgumentParser(description="Run EARS Rule Injection and generate complete modified CRD file")
+    parser.add_argument("--rules", default="EARSrules.txt", help="EARS rules file (default: EARSrules.txt)")
+    parser.add_argument("--crd-dir", default="../CRD", help="Directory containing CRD files (default: ../CRD)")
+    parser.add_argument("--output-dir", default="output", help="Output directory (default: output)")
+    parser.add_argument("--threshold", type=float, default=0.3, help="Match threshold (default: 0.3)")
+    
+    args = parser.parse_args()
+    
     print("Starting EARS Rule Injection Process...")
     print("=" * 60)
+    print(f"Rules file: {args.rules}")
+    print(f"CRD directory: {args.crd_dir}")
+    print(f"Output directory: {args.output_dir}")
+    print(f"Threshold: {args.threshold}")
+    print()
     
     # Initialize injector
-    injector = EARSInjector(rules_file="EARSrules", threshold=0.3)
+    injector = EARSInjector(rules_file=args.rules, threshold=args.threshold)
     
     # Run injection process
     print("Scanning CRD files...")
-    crd_files = injector.scan_crd_files("CRD")
+    crd_files = injector.scan_crd_files(args.crd_dir)
     
     if not crd_files:
         print("No CRD files found in CRD directory!")
@@ -37,20 +51,19 @@ def main():
     
     # Generate outputs
     print("Generating output files...")
-    injector.generate_outputs(injected_matches, ".", apply_patches=True)
+    injector.generate_outputs(injected_matches, args.output_dir, apply_patches=True)
     
     # Generate complete modified CRD file
     print("Generating complete modified CRD file...")
-    generate_complete_crd(crd_files, injected_matches)
+    generate_complete_crd(crd_files, injected_matches, args.output_dir)
     
     print("\nEARS injection complete!")
     print("Check the following files:")
-    print("- matches.csv: Detailed match information")
-    print("- injected.md: Injection results and context")
-    print("- _patched/: Complete modified CRD files")
-    print("- patches/: Patch files showing changes")
+    print(f"- {args.output_dir}/injected.md: Injection results and context")
+    print(f"- {args.output_dir}/_patched/: Complete modified CRD files")
+    print(f"- {args.output_dir}/patches/: Patch files showing changes")
 
-def generate_complete_crd(crd_files, injected_matches):
+def generate_complete_crd(crd_files, injected_matches, output_dir):
     """Generate complete modified CRD files with all injections applied."""
     
     # Group matches by file
@@ -97,7 +110,8 @@ def generate_complete_crd(crd_files, injected_matches):
                         print(f"  Warning: Could not find original paragraph for Rule {match['rule_idx']}")
         
         # Write complete modified file
-        output_file = Path("_patched") / filename
+        output_file = Path(output_dir) / "_patched" / filename
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(modified_content)
         

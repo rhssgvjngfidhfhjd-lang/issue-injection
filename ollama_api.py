@@ -11,7 +11,7 @@ client = OpenAI(base_url=base_url, api_key=api_key)
 
 def to_EARS(system_prompt, user_prompt):
     response = client.chat.completions.create(
-        model='qwen3:32b',  # 修改为qwen3:32b
+        model='qwen3:8b',  # 使用qwen3:8b模型
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -62,9 +62,17 @@ def rewrite_with_llm(paragraph, rule_cond, rule_resp):
 
 
 def main():
-	rules = parse_ears_rules('EARSrules')
-	crd_dir = './CRD'
-	os.makedirs('./patches', exist_ok=True)
+	import argparse
+	parser = argparse.ArgumentParser(description="EARS Rule Injection using Ollama API")
+	parser.add_argument("--rules", default="EARSrules.txt", help="EARS rules file (default: EARSrules.txt)")
+	parser.add_argument("--crd-dir", default="../CRD", help="Directory containing CRD files (default: ../CRD)")
+	parser.add_argument("--output-dir", default="output", help="Output directory (default: output)")
+	
+	args = parser.parse_args()
+	
+	rules = parse_ears_rules(args.rules)
+	crd_dir = args.crd_dir
+	os.makedirs(args.output_dir, exist_ok=True)
 	csv_rows = []
 	md_lines = []
 	for fname in os.listdir(crd_dir):
@@ -95,7 +103,7 @@ def main():
 				if status == 'inject':
 					rewritten = rewrite_with_llm(best_para, rule['condition'], rule['response'])
 					# 生成patch
-					patch_path = f'./patches/{fname}_section{sec_idx}_rule{rule["idx"]}.patch'
+					patch_path = f'{args.output_dir}/patches/{fname}_section{sec_idx}_rule{rule["idx"]}.patch'
 					with open(patch_path, 'w', encoding='utf-8') as pf:
 						diff = difflib.unified_diff(
 							best_para.splitlines(), rewritten.splitlines(),
@@ -104,7 +112,7 @@ def main():
 						pf.write('\n'.join(diff))
 					md_lines.append(f'### {fname} section_{sec_idx}\n**Injected:**\n{rewritten}\n\n**Context:**\n{best_para}\n')
 	# 写简化trace文件
-	with open('issue_injection_trace.txt', 'w', encoding='utf-8') as tf:
+	with open(f'{args.output_dir}/issue_injection_trace.txt', 'w', encoding='utf-8') as tf:
 		tf.write("Issue Injection Trace\n\n")
 		inject_count = len([row for row in csv_rows if row[5] == 'inject'])
 		tf.write(f"Prepared issues (LLM rewrites generated): {len(csv_rows)}\n")

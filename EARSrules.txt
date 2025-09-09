@@ -1,4 +1,4 @@
-IF ECU A wait for less than 500ms before send next request to ECU B THEN ECU B can not hanlde the request.
+IF ECU A wait for less than a certain time before send next request to ECU B THEN ECU B can not hanlde the request.
 
 IF ECU A sends a request to  ECU B start a process without previously sending a request to ECU B to stop other communications, THEN the system shall reject the request to start the process.
 

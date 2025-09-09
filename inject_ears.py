@@ -16,7 +16,6 @@ injected without contradicting the rest of the CRD.
 
 import os
 import re
-import csv
 import argparse
 import difflib
 from pathlib import Path
@@ -106,14 +105,35 @@ class CRDSection:
     def _is_table_like(self, paragraph: str) -> bool:
         """Heuristic to detect tables/lists/figures where we should not inject long text."""
         lines = paragraph.split('\n')
+        
+        # Check for table/figure headers
         if any(line.strip().startswith(('Table', 'Figure', 'Fig.', 'Table ', 'Figure ')) for line in lines[:2]):
             return True
+        
+        # Check for table separators (|)
         if any('|' in line for line in lines):
             return True
+        
+        # Check for numbered lists or TOC-like content
         if len(lines) >= 6 and sum(1 for ln in lines if re.search(r"\b\d+\b", ln)) >= 4:
             return True
+        
+        # Check for very short lines (likely formatting)
         if all(len(ln.strip()) <= 6 for ln in lines if ln.strip()):
             return True
+        
+        # Check for directory/TOC patterns
+        if re.search(r'\.{3,}|\s{10,}', paragraph):  # Dots or excessive spaces (TOC markers)
+            return True
+        
+        # Check for structured data patterns
+        if re.search(r'^\s*\d+[\.\-]\d+', paragraph, re.MULTILINE):  # Numbered sections
+            return True
+        
+        # Check for table-like alignment
+        if len([line for line in lines if re.search(r'\s{5,}', line)]) >= 3:
+            return True
+        
         return False
     def find_best_paragraph(self, rule: EARSRule) -> Tuple[str, float, str]:
         """Find the best paragraph for rule injection."""
@@ -184,29 +204,35 @@ class CRDSection:
         """使用LLM智能扫描ECU组件和条件"""
         ecu_conditions = []
         
-        # 构建LLM提示词 - 这里先保留框架，prompt内容由用户重新输入
-        prompt = f"""你是一个汽车系统专家，需要从以下技术文档章节中识别ECU组件和相关的条件/事件。
+        # Build LLM prompt for ECU and condition identification
+        prompt = f"""You are an automotive systems expert. Analyze the following technical document section to identify ECU components and related conditions/events.
 
-请仔细分析文档内容，找出：
-1. 所有提到的ECU组件（如ECGW、ventilated seat ECU等）
-2. 相关的条件/事件（需要识别事件，不会出现if/shall之类的明显的词）
+Please carefully analyze the document content and find:
+1. All mentioned ECU components (such as ECGW, ventilated seat ECU, etc.)
+2. Related conditions/events (identify events that may not have obvious keywords like 'if/shall')
 
-文档章节内容：
+IMPORTANT INSTRUCTIONS:
+- ONLY analyze TEXT content, NOT tables, lists, or directory structures
+- IGNORE table headers, table data, numbered lists, bullet points, and TOC (Table of Contents)
+- FOCUS on descriptive paragraphs and technical explanations
+- SKIP any content that appears to be structured data or formatting
+
+Document section content:
 {self.content[:3000]}
 
-请以JSON格式返回结果，格式如下：
+IMPORTANT: Do not show any thinking process or reasoning. Return ONLY the final JSON result in this exact format:
 {{
     "ecu_components": [
         {{
-            "ecu_name": "ECU名称",
-            "ecu_line": "在文档中的位置描述，第几页第几行",
-            "context": "ECU的上下文信息",
-            "conditions": ["相关条件1", "相关条件2"]
+            "ecu_name": "ECU name",
+            "ecu_line": "Position description in document, page and line number",
+            "context": "ECU context information",
+            "conditions": ["related condition 1", "related condition 2"]
         }}
     ]
 }}
 
-只返回JSON格式，不要其他文字。如果找不到ECU，返回 {{"ecu_components": []}}"""
+If no ECU found in text content, return only: {{"ecu_components": []}}"""
         
         try:
             # 调用LLM进行智能识别
@@ -225,12 +251,24 @@ class CRDSection:
         ecu_conditions = []
         
         try:
-            # 提取JSON部分
-            json_start = llm_response.find('{')
-            json_end = llm_response.rfind('}') + 1
+            # Clean response and extract JSON part
+            clean_response = llm_response.strip()
+            
+            # Remove any thinking process markers that Qwen might add
+            thinking_patterns = [
+                r'<thinking>.*?</thinking>',
+                r'<think>.*?</think>'
+            ]
+            
+            for pattern in thinking_patterns:
+                clean_response = re.sub(pattern, '', clean_response, flags=re.DOTALL)
+            
+            # Extract JSON part
+            json_start = clean_response.find('{')
+            json_end = clean_response.rfind('}') + 1
             
             if json_start != -1 and json_end > json_start:
-                json_text = llm_response[json_start:json_end]
+                json_text = clean_response[json_start:json_end]
                 parsed = json.loads(json_text)
                 
                 ecu_components = parsed.get('ecu_components', [])
@@ -454,31 +492,57 @@ class LLMClient:
 
 Task:
 - Rewrite the paragraph to naturally incorporate the specified condition/event while preserving the original style and logic.
+- The condition should be integrated as a natural part of the technical description, not as a separate requirement.
+
+CRITICAL ECU MAPPING REQUIREMENTS:
+- ECU A, ECU B, ECU C, etc. in the rule are PLACEHOLDERS/CODES, NOT actual ECU names
+- You MUST identify which real ECUs from the paragraph/context correspond to ECU A, ECU B, etc.
+- Replace ECU A, ECU B, ECU C with the ACTUAL ECU names found in the paragraph/context
+- Keep the original ECU names exactly as they appear in the document
+- Do NOT use placeholder names like "ECU A" or "ECU B" in the final output
+- If the paragraph mentions "ventilated seat ECU", use "ventilated seat ECU" (not "ECU A")
+- If the paragraph mentions "steering heater ECU", use "steering heater ECU" (not "ECU B")
+- If the paragraph mentions "A/C ECU", use "A/C ECU" (not "ECU C")
+- Map based on the context and role of each ECU in the paragraph
 
 Constraints:
-- Use existing ECU names from the paragraph/context to replace placeholders like 'ECU A' or 'ECU B'.
 - Do not introduce new requirement sentences or 'shall/must/should' phrasing.
 - Keep changes minimal. Maintain formatting, tone, and technical terms.
 - If a similar condition already exists, refine or merge it rather than duplicate.
+- ONLY work with descriptive text content, NOT tables, lists, or structured data.
+- The condition should read as a natural part of the technical description, not as a separate rule.
+
+IMPORTANT: This paragraph should be descriptive text content suitable for rule injection. If the content appears to be a table, list, or structured data, do not modify it.
 
 Original paragraph:
 {section_paragraph}
 
 Rule condition (IF-part only): {rule_condition}
 
-Important: Output ONLY the rewritten paragraph, no explanations."""
+IMPORTANT: Do not show any thinking process, reasoning, or explanations. Output ONLY the final rewritten paragraph with actual ECU names. Do NOT add any response or requirement statements."""
 
         if self.client:
             try:
                 response = self.client.chat.completions.create(
-                    model='llama3.3:latest',
+                    model='qwen3:32b',
                     messages=[
                         {"role": "system", "content": "You are an expert technical writer who specializes in automotive system requirements and EARS rules integration."},
                         {"role": "user", "content": instruction}
                     ],
                     stream=False
                 )
-                return response.choices[0].message.content.strip()
+                result = response.choices[0].message.content.strip()
+                
+                # Clean any thinking process from Qwen output
+                thinking_patterns = [
+                    r'<thinking>.*?</thinking>',
+                    r'<think>.*?</think>'
+                ]
+                
+                for pattern in thinking_patterns:
+                    result = re.sub(pattern, '', result, flags=re.DOTALL)
+                
+                return result.strip()
             except Exception as e:
                 print(f"LLM API error: {e}")
                 return self._fallback_rewrite(section_paragraph, rule_condition, rule_response)
@@ -495,7 +559,7 @@ Important: Output ONLY the rewritten paragraph, no explanations."""
         url = f"{self.base_url.rstrip('/')}/chat/completions"
         
         payload = {
-            "model": "llama3.3:latest",
+            "model": "qwen3:32b",
             "messages": [
                 {"role": "system", "content": "You are an expert technical writer who specializes in automotive system requirements and EARS rules integration."},
                 {"role": "user", "content": instruction}
@@ -512,7 +576,18 @@ Important: Output ONLY the rewritten paragraph, no explanations."""
         response.raise_for_status()
         
         result = response.json()
-        return result["choices"][0]["message"]["content"].strip()
+        content = result["choices"][0]["message"]["content"].strip()
+        
+        # Clean any thinking process from Qwen output
+        thinking_patterns = [
+            r'<thinking>.*?</thinking>',
+            r'<think>.*?</think>'
+        ]
+        
+        for pattern in thinking_patterns:
+            content = re.sub(pattern, '', content, flags=re.DOTALL)
+        
+        return content.strip()
     
     def _fallback_rewrite(self, section_paragraph: str, rule_condition: str, rule_response: str) -> str:
         """Simple fallback rewrite when LLM is unavailable."""
@@ -522,12 +597,20 @@ Important: Output ONLY the rewritten paragraph, no explanations."""
         ecu_names = re.findall(r"\b([A-Za-z][A-Za-z \-/]* ECU)\b", text, re.IGNORECASE)
         cond = re.sub(r"\b(shall|must|should|will)\b", "", rule_condition or "", re.IGNORECASE).strip()
         
-        # Map ECU placeholders to real names
+        # Map ECU placeholders to real names - be more systematic
         if ecu_names:
-            for i, placeholder in enumerate(["ECU A", "ECU B", "ECU C"]):
+            # Create a mapping from placeholder to actual ECU names
+            ecu_mapping = {}
+            for i, placeholder in enumerate(["ECU A", "ECU B", "ECU C", "ECU D"]):
                 if i < len(ecu_names):
-                    cond = cond.replace(placeholder, ecu_names[i])
-        cond = re.sub(r"\bECU [A-Z]\b", "ECU", cond)
+                    ecu_mapping[placeholder] = ecu_names[i]
+            
+            # Replace placeholders with actual ECU names
+            for placeholder, actual_name in ecu_mapping.items():
+                cond = cond.replace(placeholder, actual_name)
+            
+            # Clean up any remaining generic ECU references
+            cond = re.sub(r"\bECU [A-Z]\b", "ECU", cond)
         
         # Append condition if valid
         if cond:
@@ -662,7 +745,7 @@ class EARSInjector:
                         'ecu_match_score': ecu_match_score,
                         'condition_match_score': condition_match_score,
                         'status': status,
-                        'matched_snippet': ecu_cond['context_text'][:200] + "..." if len(ecu_cond['context_text']) > 200 else ecu_cond['context_text'],
+                        'matched_snippet': paragraph[:200] + "..." if len(paragraph) > 200 else paragraph,
                         'section': section,
                         'rule': rule,
                         'paragraph': paragraph,
@@ -675,25 +758,123 @@ class EARSInjector:
         """Score how well ECU in rule matches ECU in section."""
         score = 0.0
         
-        # Extract ECU names from rule
-        rule_ecu_patterns = [
+        # Extract ECU information from rule
+        rule_ecu_info = self._analyze_rule_ecu_pattern(rule)
+        
+        # Extract ECU information from section
+        section_ecu_info = self._analyze_section_ecu_pattern(ecu_cond)
+        
+        # Score based on ECU count match
+        if rule_ecu_info['ecu_count'] == section_ecu_info['ecu_count']:
+            score += 0.3
+        elif abs(rule_ecu_info['ecu_count'] - section_ecu_info['ecu_count']) == 1:
+            score += 0.2
+        elif abs(rule_ecu_info['ecu_count'] - section_ecu_info['ecu_count']) == 2:
+            score += 0.1
+        
+        # Score based on ECU type match
+        for rule_ecu in rule_ecu_info['ecu_types']:
+            for section_ecu in section_ecu_info['ecu_types']:
+                if rule_ecu.lower() in section_ecu.lower() or section_ecu.lower() in rule_ecu.lower():
+                    score += 0.4
+                elif any(word in section_ecu.lower() for word in rule_ecu.lower().split()):
+                    score += 0.2
+        
+        # Score based on interaction pattern match
+        pattern_score = self._score_interaction_pattern_match(rule_ecu_info, section_ecu_info)
+        score += pattern_score * 0.3
+        
+        return min(score, 1.0)
+    
+    def _analyze_rule_ecu_pattern(self, rule: EARSRule) -> Dict:
+        """Analyze ECU pattern in EARS rule."""
+        rule_text = rule.original_text
+        
+        # Extract ECU references
+        ecu_patterns = [
             r'ECU\s+([A-Z])',
             r'([A-Z]+\s+ECU)',
-            r'ECGW'
+            r'ECGW',
+            r'Server'
         ]
         
-        rule_ecus = []
-        for pattern in rule_ecu_patterns:
-            matches = re.findall(pattern, rule.original_text, re.IGNORECASE)
-            rule_ecus.extend(matches)
+        ecus_found = set()
+        for pattern in ecu_patterns:
+            matches = re.findall(pattern, rule_text, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, tuple):
+                    ecus_found.add(' '.join(match))
+                else:
+                    ecus_found.add(match)
         
-        # Check if any ECU from rule matches ECU in section
-        for rule_ecu in rule_ecus:
-            for ecu_match in ecu_cond['ecu_matches']:
-                if rule_ecu.lower() in ecu_match.lower() or ecu_match.lower() in rule_ecu.lower():
-                    score += 0.8
-                elif any(word in ecu_match.lower() for word in rule_ecu.lower().split()):
-                    score += 0.4
+        # Analyze interaction patterns
+        interaction_patterns = {
+            'request_response': len(re.findall(r'send.*request|receive.*response', rule_text, re.IGNORECASE)),
+            'forward': len(re.findall(r'forward|transmit', rule_text, re.IGNORECASE)),
+            'wait': len(re.findall(r'wait|delay', rule_text, re.IGNORECASE)),
+            'sequence': len(re.findall(r'sequence|step|before.*after', rule_text, re.IGNORECASE)),
+            'timeout': len(re.findall(r'timeout|time.*limit', rule_text, re.IGNORECASE))
+        }
+        
+        return {
+            'ecu_count': len(ecus_found),
+            'ecu_types': list(ecus_found),
+            'interaction_patterns': interaction_patterns
+        }
+    
+    def _analyze_section_ecu_pattern(self, ecu_cond: Dict) -> Dict:
+        """Analyze ECU pattern in CRD section."""
+        context_text = ecu_cond['context_text']
+        
+        # Extract ECU references
+        ecu_patterns = [
+            r'ECU\s+([A-Z])',
+            r'([A-Z]+\s+ECU)',
+            r'ECGW',
+            r'Server'
+        ]
+        
+        ecus_found = set()
+        for pattern in ecu_patterns:
+            matches = re.findall(pattern, context_text, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, tuple):
+                    ecus_found.add(' '.join(match))
+                else:
+                    ecus_found.add(match)
+        
+        # Analyze interaction patterns
+        interaction_patterns = {
+            'request_response': len(re.findall(r'send.*request|receive.*response', context_text, re.IGNORECASE)),
+            'forward': len(re.findall(r'forward|transmit', context_text, re.IGNORECASE)),
+            'wait': len(re.findall(r'wait|delay', context_text, re.IGNORECASE)),
+            'sequence': len(re.findall(r'sequence|step|before.*after', context_text, re.IGNORECASE)),
+            'timeout': len(re.findall(r'timeout|time.*limit', context_text, re.IGNORECASE))
+        }
+        
+        return {
+            'ecu_count': len(ecus_found),
+            'ecu_types': list(ecus_found),
+            'interaction_patterns': interaction_patterns
+        }
+    
+    def _score_interaction_pattern_match(self, rule_info: Dict, section_info: Dict) -> float:
+        """Score how well interaction patterns match between rule and section."""
+        score = 0.0
+        
+        rule_patterns = rule_info['interaction_patterns']
+        section_patterns = section_info['interaction_patterns']
+        
+        for pattern_type in rule_patterns:
+            rule_count = rule_patterns[pattern_type]
+            section_count = section_patterns[pattern_type]
+            
+            if rule_count > 0 and section_count > 0:
+                # Both have this pattern
+                score += 0.3
+            elif rule_count > 0 and section_count == 0:
+                # Rule has pattern but section doesn't
+                score += 0.1
         
         return min(score, 1.0)
     
@@ -701,21 +882,87 @@ class EARSInjector:
         """Score how well condition in rule matches conditions in section."""
         score = 0.0
         
-        # Check if rule condition keywords appear in section conditions
-        rule_condition_lower = rule.condition.lower()
-        condition_keywords = [
-            'request', 'start', 'stop', 'wait', 'sequence', 'timeout', 'error',
-            'communication', 'status', 'ready', 'process', 'step'
-        ]
+        # Analyze condition patterns in rule
+        rule_condition_info = self._analyze_rule_condition_pattern(rule)
         
-        for keyword in condition_keywords:
-            if keyword in rule_condition_lower:
-                if any(keyword in cond.lower() for cond in ecu_cond['conditions']):
+        # Analyze condition patterns in section
+        section_condition_info = self._analyze_section_condition_pattern(ecu_cond)
+        
+        # Score based on condition type match
+        for condition_type in rule_condition_info['condition_types']:
+            if condition_type in section_condition_info['condition_types']:
+                score += 0.3
+        
+        # Score based on timing/sequence keywords
+        timing_keywords = ['wait', 'timeout', 'delay', 'before', 'after', 'sequence', 'step']
+        for keyword in timing_keywords:
+            if keyword in rule.condition.lower():
+                if keyword in ecu_cond['context_text'].lower():
                     score += 0.2
-                elif keyword in ecu_cond['context_text'].lower():
+        
+        # Score based on action keywords
+        action_keywords = ['send', 'receive', 'request', 'response', 'start', 'stop', 'forward']
+        for keyword in action_keywords:
+            if keyword in rule.condition.lower():
+                if keyword in ecu_cond['context_text'].lower():
+                    score += 0.15
+        
+        # Score based on state keywords
+        state_keywords = ['ready', 'status', 'error', 'fail', 'success', 'complete']
+        for keyword in state_keywords:
+            if keyword in rule.condition.lower():
+                if keyword in ecu_cond['context_text'].lower():
                     score += 0.1
         
         return min(score, 1.0)
+    
+    def _analyze_rule_condition_pattern(self, rule: EARSRule) -> Dict:
+        """Analyze condition pattern in EARS rule."""
+        condition_text = rule.condition.lower()
+        
+        condition_types = []
+        
+        # Identify condition types
+        if 'wait' in condition_text or 'timeout' in condition_text:
+            condition_types.append('timing')
+        if 'sequence' in condition_text or 'step' in condition_text or 'before' in condition_text:
+            condition_types.append('sequence')
+        if 'send' in condition_text or 'receive' in condition_text:
+            condition_types.append('communication')
+        if 'start' in condition_text or 'stop' in condition_text:
+            condition_types.append('process_control')
+        if 'error' in condition_text or 'fail' in condition_text:
+            condition_types.append('error_handling')
+        if 'ready' in condition_text or 'status' in condition_text:
+            condition_types.append('state_check')
+        
+        return {
+            'condition_types': condition_types
+        }
+    
+    def _analyze_section_condition_pattern(self, ecu_cond: Dict) -> Dict:
+        """Analyze condition pattern in CRD section."""
+        context_text = ecu_cond['context_text'].lower()
+        
+        condition_types = []
+        
+        # Identify condition types
+        if 'wait' in context_text or 'timeout' in context_text:
+            condition_types.append('timing')
+        if 'sequence' in context_text or 'step' in context_text or 'before' in context_text:
+            condition_types.append('sequence')
+        if 'send' in context_text or 'receive' in context_text:
+            condition_types.append('communication')
+        if 'start' in context_text or 'stop' in context_text:
+            condition_types.append('process_control')
+        if 'error' in context_text or 'fail' in context_text:
+            condition_types.append('error_handling')
+        if 'ready' in context_text or 'status' in context_text:
+            condition_types.append('state_check')
+        
+        return {
+            'condition_types': condition_types
+        }
     
     def _score_section(self, section: CRDSection, rule: EARSRule) -> float:
         """Score a section against a rule."""
@@ -744,7 +991,7 @@ class EARSInjector:
         
         # Prioritize by match_score descending; only count real injections
         sorted_matches = sorted(matches, key=lambda m: m.get('match_score', 0.0), reverse=True)
-        max_injections = 1
+        max_injections = 999  # Remove limit for testing
         injections_done = 0
         
         for match in sorted_matches:
@@ -764,9 +1011,6 @@ class EARSInjector:
                     )
                     # Normalize terminology and EARS style
                     rewritten = rewritten.replace('ventilated sheet ECU', 'ventilated seat ECU')
-                    if ' shall ' not in rewritten and 'shall ' in match['rule'].response.lower():
-                        # enforce requirement tone lightly by appending response if missing
-                        rewritten = f"{rewritten}\n{match['rule'].response}"
                     match['injected_paragraph'] = rewritten
                     injected_results.append(match)
                     injections_done += 1
@@ -781,7 +1025,7 @@ class EARSInjector:
         
         return injected_results
     
-    def generate_outputs(self, matches: List[Dict], output_dir: str = ".", apply_patches: bool = False):
+    def generate_outputs(self, matches: List[Dict], output_dir: str = "output", apply_patches: bool = False):
         """Generate output files and patches."""
         output_path = Path(output_dir)
         
@@ -789,12 +1033,11 @@ class EARSInjector:
         patches_dir = output_path / "patches"
         patched_dir = output_path / "_patched"
         
+        output_path.mkdir(exist_ok=True)
         patches_dir.mkdir(exist_ok=True)
         if apply_patches:
             patched_dir.mkdir(exist_ok=True)
         
-        # Generate matches.csv
-        self._write_matches_csv(matches, output_path / "matches.csv")
         
         # Generate injected.md
         self._write_injected_md(matches, output_path / "injected.md")
@@ -802,32 +1045,6 @@ class EARSInjector:
         # Generate patches
         self._generate_patches(matches, patches_dir, patched_dir, apply_patches)
     
-    def _write_matches_csv(self, matches: List[Dict], output_file: Path):
-        """Write matches to CSV file."""
-        with open(output_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=[
-                'crd_file', 'ecu_section', 'line_span', 'rule_idx', 
-                'match_score', 'status', 'match_type', 'ecu_match_score', 
-                'condition_match_score', 'matched_snippet'
-            ])
-            writer.writeheader()
-            
-            for match in matches:
-                row = {
-                    'crd_file': match.get('crd_file', ''),
-                    'ecu_section': match.get('ecu_section', ''),
-                    'line_span': match.get('line_span', ''),
-                    'rule_idx': match.get('rule_idx', ''),
-                    'match_score': f"{match.get('match_score', 0):.3f}",
-                    'status': match.get('status', ''),
-                    'match_type': match.get('match_type', ''),
-                    'ecu_match_score': f"{match.get('ecu_match_score', 0):.3f}" if 'ecu_match_score' in match else '',
-                    'condition_match_score': f"{match.get('condition_match_score', 0):.3f}" if 'condition_match_score' in match else '',
-                    'matched_snippet': match.get('matched_snippet', '')
-                }
-                writer.writerow(row)
-        
-        print(f"Matches written to: {output_file}")
     
     def _write_injected_md(self, matches: List[Dict], output_file: Path):
         """Write injection results to Markdown file."""
@@ -988,7 +1205,7 @@ class EARSInjector:
                 
                 print(f"Patched file written to: {patched_file}")
     
-    def run(self, crd_dir: str = ".", output_dir: str = ".", apply_patches: bool = False):
+    def run(self, crd_dir: str = ".", output_dir: str = "output", apply_patches: bool = False):
         """Run the complete EARS injection process."""
         print("=" * 60)
         print("SECURITY NOTICE: Processing CONFIDENTIAL CRD documents")
@@ -1060,8 +1277,8 @@ def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Inject EARS rules into CRD files using local LLM")
     parser.add_argument("--rules", default="EARSrules.txt", help="EARS rules file (default: EARSrules.txt)")
-    parser.add_argument("--crd-dir", default=".", help="Directory containing CRD files (default: current)")
-    parser.add_argument("--output-dir", default=".", help="Output directory (default: current)")
+    parser.add_argument("--crd-dir", default="../CRD", help="Directory containing CRD files (default: ../CRD)")
+    parser.add_argument("--output-dir", default="output", help="Output directory (default: output)")
     parser.add_argument("--threshold", type=float, default=0.3, help="Match threshold (default: 0.3)")
     parser.add_argument("--apply", action="store_true", help="Apply patches to create patched files")
     parser.add_argument("--md", action="store_true", help="Generate injected.md output")
@@ -1148,10 +1365,9 @@ def main():
         if args.secure_cleanup:
             print("\nPerforming secure cleanup of output files...")
             cleanup_files = [
-                "matches.csv",
-                "injected.md",
-                "patches",
-                "_patched"
+                "output/injected.md",
+                "output/patches",
+                "output/_patched"
             ]
             for file_path in cleanup_files:
                 if os.path.exists(file_path):

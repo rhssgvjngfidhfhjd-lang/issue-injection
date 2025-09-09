@@ -2,18 +2,32 @@
 """
 Demo script for EARS Rule Injection Tool
 This script demonstrates how to use the EARS injection tool with the sample CRD file.
+Note: This demo uses the local CRD/ folder for demonstration. 
+For actual usage, CRD files should be placed in ../CRD/ (same level as Issue-Injection folder).
 """
 
 import os
 import sys
+import argparse
 from pathlib import Path
 
 def main():
+    parser = argparse.ArgumentParser(description="Demo script for EARS Rule Injection Tool")
+    parser.add_argument("--rules", default="EARSrules.txt", help="EARS rules file (default: EARSrules.txt)")
+    parser.add_argument("--crd-dir", default="CRD", help="Directory containing CRD files (default: CRD)")
+    parser.add_argument("--threshold", type=float, default=0.3, help="Match threshold (default: 0.3)")
+    
+    args = parser.parse_args()
+    
     print("EARS Rule Injection Demo")
     print("=" * 40)
+    print(f"Rules file: {args.rules}")
+    print(f"CRD directory: {args.crd_dir}")
+    print(f"Threshold: {args.threshold}")
+    print()
     
     # Check if required files exist
-    required_files = ['EARSrules', 'inject_ears.py', 'CRD/Sample_ECU_Function_Specification.txt']
+    required_files = [args.rules, 'inject_ears.py', f'{args.crd_dir}/Sample_ECU_Function_Specification.txt']
     missing_files = []
     
     for file in required_files:
@@ -38,13 +52,13 @@ def main():
         choice = input("\nEnter your choice (1-4): ").strip()
         
         if choice == "1":
-            run_quick_test()
+            run_quick_test(args.rules, args.crd_dir, args.threshold)
         elif choice == "2":
-            run_full_injection()
+            run_full_injection(args.rules, args.crd_dir, args.threshold)
         elif choice == "3":
-            show_ears_rules()
+            show_ears_rules(args.rules)
         elif choice == "4":
-            show_crd_structure()
+            show_crd_structure(args.crd_dir)
         else:
             print("Invalid choice. Please run the demo again.")
             return 1
@@ -58,7 +72,7 @@ def main():
     
     return 0
 
-def run_quick_test():
+def run_quick_test(rules_file, crd_dir, threshold):
     """Run a quick test to show matching without LLM processing"""
     print("\n🔍 Running quick test (scan and match only)...")
     
@@ -66,11 +80,11 @@ def run_quick_test():
         from inject_ears import EARSInjector
         
         # Initialize injector
-        injector = EARSInjector('EARSrules', threshold=0.3)
+        injector = EARSInjector(rules_file, threshold=threshold)
         print(f"✅ Loaded {len(injector.rules)} EARS rules")
         
         # Scan CRD files
-        crd_files = injector.scan_crd_files('CRD')
+        crd_files = injector.scan_crd_files(crd_dir)
         print(f"✅ Found {len(crd_files)} CRD files")
         
         # Find matches
@@ -89,7 +103,7 @@ def run_quick_test():
         print(f"❌ Import error: {e}")
         print("Please ensure all dependencies are installed.")
 
-def run_full_injection():
+def run_full_injection(rules_file, crd_dir, threshold):
     """Run full injection with LLM processing"""
     print("\n🚀 Running full injection (requires LLM)...")
     print("⚠️  Note: This requires a running Ollama instance with llama3.3:latest model")
@@ -102,8 +116,8 @@ def run_full_injection():
     try:
         from inject_ears import EARSInjector
         
-        injector = EARSInjector('EARSrules', threshold=0.3)
-        crd_files = injector.scan_crd_files('CRD')
+        injector = EARSInjector(rules_file, threshold=threshold)
+        crd_files = injector.scan_crd_files(crd_dir)
         matches = injector.find_matches(crd_files)
         
         if matches:
@@ -117,13 +131,13 @@ def run_full_injection():
     except Exception as e:
         print(f"❌ Error during injection: {e}")
 
-def show_ears_rules():
+def show_ears_rules(rules_file):
     """Display available EARS rules"""
     print("\n📜 Available EARS Rules:")
     print("-" * 50)
     
     try:
-        with open('EARSrules', 'r', encoding='utf-8') as f:
+        with open(rules_file, 'r', encoding='utf-8') as f:
             for i, line in enumerate(f, 1):
                 line = line.strip()
                 if line and not line.startswith('#'):
@@ -133,7 +147,7 @@ def show_ears_rules():
     except Exception as e:
         print(f"❌ Error reading EARS rules: {e}")
 
-def show_crd_structure():
+def show_crd_structure(crd_dir):
     """Display CRD file structure"""
     print("\n📁 CRD File Structure:")
     print("-" * 30)
@@ -141,7 +155,7 @@ def show_crd_structure():
     try:
         from inject_ears import CRDFile
         
-        crd_file = CRDFile(Path('CRD/Sample_ECU_Function_Specification.txt'))
+        crd_file = CRDFile(Path(f'{crd_dir}/Sample_ECU_Function_Specification.txt'))
         print(f"File: {crd_file.file_path.name}")
         print(f"Sections found: {len(crd_file.sections)}")
         print("\nSection breakdown:")
