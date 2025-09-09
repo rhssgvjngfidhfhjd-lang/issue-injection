@@ -486,7 +486,7 @@ class LLMClient:
         else:
             self.client = None
     
-    def rewrite_with_llm(self, section_paragraph: str, rule_condition: str, rule_response: str) -> str:
+    def rewrite_with_llm(self, section_paragraph: str, rule_condition: str, rule_response: str, section_context: str = "") -> str:
         """Rewrite paragraph to include rule condition and response."""
         instruction = f"""You are rewriting a technical paragraph from an automotive CRD document. Integrate ONLY the rule's condition/event (the IF-part) into the paragraph. Do NOT insert any requirement wording (e.g., 'shall', 'must') and do NOT add the THEN-part.
 
@@ -494,7 +494,7 @@ Task:
 - Rewrite the paragraph to naturally incorporate the specified condition/event while preserving the original style and logic.
 - The condition should be integrated as a natural part of the technical description, not as a separate requirement.
 
-CRITICAL ECU MAPPING REQUIREMENTS:
+CRITICAL ECU MAPPING AND TIMING REQUIREMENTS:
 - ECU A, ECU B, ECU C, etc. in the rule are PLACEHOLDERS/CODES, NOT actual ECU names
 - You MUST identify which real ECUs from the paragraph/context correspond to ECU A, ECU B, etc.
 - Replace ECU A, ECU B, ECU C with the ACTUAL ECU names found in the paragraph/context
@@ -504,6 +504,13 @@ CRITICAL ECU MAPPING REQUIREMENTS:
 - If the paragraph mentions "steering heater ECU", use "steering heater ECU" (not "ECU B")
 - If the paragraph mentions "A/C ECU", use "A/C ECU" (not "ECU C")
 - Map based on the context and role of each ECU in the paragraph
+
+CRITICAL TIMING REQUIREMENTS:
+- If the rule mentions "a certain time", "waiting time", or similar vague timing, you MUST scan the paragraph and context for SPECIFIC timing values
+- Look for specific time values like "500ms", "100ms", "1 second", "2 seconds", etc. in the paragraph or surrounding context
+- Replace vague timing references with the ACTUAL specific time values found in the document
+- If no specific timing is found in the immediate context, look for timing patterns or standard values mentioned elsewhere in the document
+- Do NOT use generic phrases like "a certain time" - always use specific time values when available
 
 Constraints:
 - Do not introduce new requirement sentences or 'shall/must/should' phrasing.
@@ -518,6 +525,21 @@ Original paragraph:
 {section_paragraph}
 
 Rule condition (IF-part only): {rule_condition}
+
+CONTEXT FOR TIMING ANALYSIS:
+- Scan the paragraph above for any specific timing values (ms, seconds, etc.)
+- Look for timing patterns, delays, or waiting periods mentioned in the text
+- Use the most relevant specific timing value found in the context
+
+ADDITIONAL SECTION CONTEXT FOR TIMING:
+{section_context}
+
+TIMING ANALYSIS INSTRUCTIONS:
+- If the rule mentions "a certain time", "waiting time", or similar vague timing, search the section context above for SPECIFIC timing values
+- Look for patterns like "500ms", "100ms", "1 second", "2 seconds", "time chart", "timing", etc.
+- If you find specific timing values in the section context, use them instead of vague references
+- If no specific timing is found, look for standard automotive timing patterns (e.g., 100ms, 500ms, 1s are common)
+- Do NOT use generic phrases like "a certain time" - always try to find or infer specific time values
 
 IMPORTANT: Do not show any thinking process, reasoning, or explanations. Output ONLY the final rewritten paragraph with actual ECU names. Do NOT add any response or requirement statements."""
 
@@ -671,12 +693,15 @@ class EARSInjector:
                 # Scan for ECU components and conditions in this section
                 ecu_conditions = section.scan_ecu_and_conditions()
                 
+                # Collect all potential matches for this section
+                section_matches = []
+                
                 for rule in self.rules:
                     # Try to find the best match based on ECU and condition analysis
                     best_match = self._find_best_ecu_match(ecu_conditions, rule, section, crd_file.file_path.name)
                     
                     if best_match:
-                        matches.append(best_match)
+                        section_matches.append(best_match)
                     else:
                         # Fallback to original scoring method, but only if section contains ECU context
                         if not re.search(r"\bECU\b|gateway|module|control unit", section.content, re.IGNORECASE):
@@ -695,14 +720,19 @@ class EARSInjector:
                                     'rule_idx': rule.rule_idx,
                                     'match_score': score,
                                     'status': status,
-                                    'matched_snippet': paragraph[:200] + "..." if len(paragraph) > 200 else paragraph,
+                                    'matched_snippet': paragraph,
                                     'section': section,
                                     'rule': rule,
                                     'paragraph': paragraph,
                                     'match_type': 'fallback'
                                 }
-                                matches.append(match)
-                    break
+                                section_matches.append(match)
+                
+                # Randomly select one match from all potential matches for this section
+                if section_matches:
+                    import random
+                    selected_match = random.choice(section_matches)
+                    matches.append(selected_match)
         
         return matches
     
@@ -745,7 +775,7 @@ class EARSInjector:
                         'ecu_match_score': ecu_match_score,
                         'condition_match_score': condition_match_score,
                         'status': status,
-                        'matched_snippet': paragraph[:200] + "..." if len(paragraph) > 200 else paragraph,
+                        'matched_snippet': paragraph,
                         'section': section,
                         'rule': rule,
                         'paragraph': paragraph,
@@ -1003,11 +1033,13 @@ class EARSInjector:
                     injected_results.append(match)
                     continue
                 try:
-                    # Rewrite paragraph with LLM
+                    # Rewrite paragraph with LLM, including section context for timing analysis
+                    section_context = match['section'].content[:2000]  # Include more context for timing analysis
                     rewritten = self.llm_client.rewrite_with_llm(
                         match['paragraph'],
                         match['rule'].condition,
-                        match['rule'].response
+                        match['rule'].response,
+                        section_context
                     )
                     # Normalize terminology and EARS style
                     rewritten = rewritten.replace('ventilated sheet ECU', 'ventilated seat ECU')
