@@ -4,19 +4,22 @@ import difflib
 import csv
 from openai import OpenAI
 
-base_url = 'http://localhost:11434/v1/'
-api_key = 'ollama'
+base_url = 'https://litellm.eks-ans-se-dev.aws.automotive.cloud/'
+api_key = 'sk-50qjfnJryCKT_Ku80l1c9w'
+model_name = 'gpt-5'  # Export model name for use in other modules
 client = OpenAI(base_url=base_url, api_key=api_key)
+
 
 
 def to_EARS(system_prompt, user_prompt):
     response = client.chat.completions.create(
-        model='qwen3:8b',  # 使用qwen3:8b模型
+        model=model_name,  # Use exported model name
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        stream=False
+        temperature=0.0,
+    	stream=True
     )
     message = response.choices[0].message.content
     return message

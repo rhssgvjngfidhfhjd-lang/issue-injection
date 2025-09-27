@@ -1,0 +1,2329 @@
+                                                                                                                              Confidential
+                         Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                It is prohibited to copy, take out, or modify without permission from the system development group.
+
+
+
+
+                                   control requirement specification
+
+                                 Air-Conditioning Gateway Function
+
+
+                                                       Version 1.6
+                                                       2024.04.26
+
+
+
+
+                                              Approved by:                Approval
+
+
+
+
+                                              Checked by:              Confirmation          checking
+
+
+
+
+                                             Document maintained by Suzuki
+                       Information Electronic System Development Group, Automobile Electronic System De
+velopment Department, Suzuki Motor Corporation
+                                            SUZUKI MOTOR CORPORATION
+                             Automobile Electronic System Development Department,
+                                 Information/Electronic System Development Group
+                                                         053.440.2515
+                                                 E-mail: @hhq.suzuki.co.jp
+
+                                                                  1
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+Revision History
+  The revision history of this book is listed below.
+  Version 1.0 (Date: 2022/07/18, Contact: Seki)
+ Chapter        Content                                                                                         Page
+ General        New                                                                                             -
+  Version 1.1 (Date: 2022/09/30, Contact: Seki)
+ Chapter        Content                                                                                         Page
+                [Specification changes]
+ 2-1            Input data is deleted because coolant specification determination is                            9
+                changed to variant writing.
+                [Erroneous Correction]
+ 3-1-2                                                                                                          25, 27
+                Unnecessary ID Removal
+                [Erroneous Correction]
+ 3-1-3                                                                                                          31
+                Correction of name of failure information from steering heater ECU
+                [Specification changes]
+ 3-2            Change from automatic judgment based on refrigerant specification                               32, 33
+                and destination information to variant writing
+  Version 1.2 (Date: 2022/11/30, Contact: Seki)
+ Chapter        Content                                                                                         Page
+                [Description added]
+ General                                                                                                        -
+                Grant Request ID, Modify Figure Number
+                [Specification changes]
+                With the addition of the automatic stop control of the steering heater,
+ 2-1                                                                                                            10
+                the Steering Heater Time Up Request of the LIN signal was added to
+                the input.
+                [Specification changes]
+                ・Automatic stop control is added after the operation of the steering
+                heater has passed the specified time.                                                           14, 15, 16, 19,
+ 3-1-1
+                ・Remove IG1/IGP Status from the output. (The ventilated seat ECU                                20
+                and the steering heater ECU can manage the power supply state by
+                themselves without transmitting the IG state from the ECGW.)
+                [Correction]
+ 3-2                                                                                                            32
+                (3)input data correction
+                [Specification changes]
+ 4-1                                                                                                            33
+                Delete IG1/IGP Status
+  Version 1.3 (Date: 2023/01/20, Contact: Seki)
+ Chapter        Content                                                                                         Page
+                [Correction]
+ General                                                                                                        -
+                table numbers, modifying figure numbers
+                [Erroneous Correction]
+ 1-5, 1-6                                                                                                       9
+                Chapter Number Correction
+                [Erroneous Correction]
+ 3-1-1          The data name of Steering Heater Setting Request is unified to the                              19
+                name described in the LIN communication specification.
+                [Erroneous Correction]
+                ・Erroneous correction of calculation condition of ventilated seat ECU
+ 3-1-2          failure state                                                                                   25, 26
+                ・Unify data names to those described in LIN communication
+                specifications
+                [Erroneous Correction]
+ 3-2            Refrigerant Type usage range is unified to the description in the CAN                           32
+                communication specifications.
+  Version 1.4 (Date: 2023/07/03, Contact: Seki)
+ Chapter        Content                                                                                         Page
+
+                                                                     2
+                                                                                                                               Confidential
+                          Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                 It is prohibited to copy, take out, or modify without permission from the system development group.
+              [Correction]
+1-2                                                                                                           6
+              Add Applicable Specification, Modify Applicable Specification Name
+              [Erroneous Correction]
+3-1-1                                                                                                         16
+              Table 3-1-5. Corrects the output value in the internal output data list.
+              [Correction]
+3-1-2                                                                                                         28
+              condition descriptions, adding initial values
+              [Correction]
+              ・Correction of disconnection and short circuit of failure information
+3-1-3                                                                                                         31, 32
+              received from ventilated seat ECU and steering heater ECU
+              ・Added a note to correspond to the DTC in the UDS specification.
+              [Erroneous Correction]
+              ・CANID in the CAN transmission data list was changed from 441 to 41
+4-1                                                                                                           34, 35
+              C.
+              ・Table 4-1-3. Corrects the output value in the internal output data list.
+ Version 1.5 (Date: 2023/09/25, Contact: Seki)
+Chapter       Content                                                                                         Page
+              [Correction]
+1-2                                                                                                           6
+              addition of applicable specifications
+              [Specifications added]
+2-1                                                                                                           10
+              Define data to receive from remote air conditioning
+              [Specifications added]
+3-1-1         Added arbitration control for Air Conditioning Gateway and Remote Air                           14~31
+              Conditioning
+              [Correction]
+3-1-2                                                                                                         33
+              Modify Figure Number
+              [Correction]
+3-1-3                                                                                                         40
+              Modify Figure Number
+ Version 1.6 (Date: 2024/03/29, Contact: Suzuki)
+Chapter       Content                                                                                         Page
+              [Erroneous Correction]
+General                                                                                                       10,15,17
+              Erroneous correction of internal input data
+              [Description added]
+3-1-1                                                                                                         19~28
+              The behavior when the condition is satisfied or not is added.
+
+
+
+
+                                                                   3
+                                                                                                                                                                Confidential
+                                      Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                             It is prohibited to copy, take out, or modify without permission from the system development group.
+
+Contents
+1. Apply ..........................................................................................................................................................................5
+
+   1-1. Definition of change description method .................................................................................................................5
+
+   1-2. applicable specification ...........................................................................................................................................6
+
+   1-3. Terminology ..........................................................................................................................................................7
+
+   1-4. control logic ..........................................................................................................................................................8
+
+   1-5. equations, symbolic notation .................................................................................................................................10
+
+   1-6. ID Settings .........................................................................................................................................................10
+
+2. Input ........................................................................................................................................................................11
+
+   2-1. input list ............................................................................................................................................................11
+
+3. air conditioning control ..............................................................................................................................................13
+
+   3-1. gateway function control ......................................................................................................................................14
+
+       3-1-1. Gateway/arbitration function (CAN communication →LIN communication conversion) .............................................15
+
+       3-1-2. Gateway function (conversion from LIN communication to CAN communication) .....................................................34
+
+       3-1-3. fault diagnosis output function ..........................................................................................................................42
+
+       3-2. refrigerant specification discrimination control .......................................................................................................47
+
+   4. Output ..................................................................................................................................................................49
+
+   4-1. output list ...........................................................................................................................................................49
+
+
+
+
+                                                                                         4
+                                                                                                                                Confidential
+                           Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                  It is prohibited to copy, take out, or modify without permission from the system development group.
+
+1. Apply
+
+
+1-1. Definition of change description method
+  The method of describing changes in this specification is defined as follows.
+   ・Changes         ... Set the background color to yellow.
+   ・New additions ... The background shall be yellow and the content shall be red.
+   ・Deletion        ... with a yellow background and double strikethrough characters.
+
+
+
+
+                                                                    5
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+1-2. applicable specification
+  The names of documents referred to in this document are listed below.
+      References                                                          Publishing Group
+                                                                          Automobile Electronic System Development De
+      Control Requirement Specifications _ Remote Air
+                                                                          partment Information Electronic System Develo
+      Conditioning Function
+                                                                          pment Group
+      SUZUKI LIN SPECIFICATION for Seat Heater *1
+      SUZUKI LIN SPECIFICATION for Steering Heater
+                                                                          Communication, Control and Security Technolo
+      *1
+                                                                          gy Development Group, Automobile Electronic
+      SUZUKI CAN SPECIFICATION PART2 for YY8 *2
+                                                                          Platform Development Department
+      SUZUKI SDL on CAN-UDS SPECIFICATION
+      PART2 for ECGW *3
+    *1 Described as "SUZUKI LIN SPECIFICATION" in the specifications.
+    *2 Described as "SUZUKI CAN SPECIFICATION" in the specifications.
+    *3 Described as "SUZUKI SDL on CAN-UDS SPECIFICATION" in the specifications.
+
+
+
+
+                                                                     6
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+1-3. Terminology
+  The table explains the terms used in this document.
+  Table 1 -3 -1. Glossary
+      Terminology         Content
+      IG                  Ignition
+      AND                 logical conjunction
+      OR                  logical sum
+      LIN                 Local Interconnect Network (in-vehicle LAN standard)
+      CAN                 Controller Area Network (in-vehicle LAN standard)
+      ECU                 electronic control unit
+      IDS                 Information Display System
+      HFC134a             R134a (current refrigerant)
+      HFO1234yf           R1234yf (new refrigerant)
+
+
+
+
+                                                                  7
+                                                                                                                                   Confidential
+                              Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                     It is prohibited to copy, take out, or modify without permission from the system development group.
+
+1-4. control logic
+  In this paper, the control logic is composed of "control block diagram," "control function (algorithm)," and "output
+  setting."
+  Readability shall be given the highest priority when describing control logic.
+  Such notation may be used.
+
+
+1-4-1. control block diagram
+  In the figure, the control function is placed in the center, and the input (element data of processing) is shown on
+  the left side, and the output (data calculated by processing) is shown on the right side.
+  The notation used in the figure is shown in the following table.
+  Table 1-4-1. Control block diagram notation list
+       Notation                                        Meaning                     Remarks
+                                                                                   The corresponding data name is indicated
+                                                       input/output data
+                                                                                   in the block.
+
+                                                                                   Describe the details of the processing with
+                                                       control function
+                                                                                   control function terms
+
+                                                                                   The tip of the arrow indicates the flow of
+                                                       Data Flow
+                                                                                   data
+
+
+
+                       A                                                B                                              C
+
+                                          Figure 1-4-1. Example of control block diagram
+1-4-2. Control functions (algorithms)
+  The items described in the control function shall be updated every cycle. In this paper, tables are used to explain
+  control functions.
+  The table mainly contains columns for Priority, condition, logic, and output name, and each meaning and use are
+  shown in the table.
+  If the control function does not require Priority and logic, the Priority and logic columns are not specified.
+  Table 1-4-2. control function field
+       Column
+                     Meaning and use
+       name
+                     Specify the order of processing. The condition with the highest priority is indicated in the
+       Priority
+                     upper row.
+       Condition     The conditions for calculating the output of the control function are shown.
+                     When the output of the control function is calculated from a plurality of conditions, the
+       Logic
+                     processing described in the logic column is applied to the plurality of conditions.
+       Output
+                     The name of the output that the control function outputs.
+       name
+
+
+1-4-3. Output Settings
+  In this paper, the following table is used to explain the output in the control block diagram.
+  The table mainly contains columns for items (of output names), range of use, resolution, initial value, period, and
+  processing. The table shows the meaning and use of each column.
+
+
+                                                                    8
+                                                                                                                                Confidential
+                           Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                  It is prohibited to copy, take out, or modify without permission from the system development group.
+
+ Table 1-4-3. control function field
+Column
+             Meaning and use
+name
+Item         Enter all output names in the control block diagram.
+range of
+             It defines the range within which the output calculated by the control function can be taken.
+use
+             The resolution for the range of use is shown. "-" is indicated for objects with no resolution
+resolution
+             such as ON/OFF.
+Period       The processing cycle for calculating the output of the control function is shown.
+Initial
+             Specifies the initial value of the output calculated by the control function.
+value
+
+
+
+
+                                                                 9
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+1-5. equations, symbolic notation
+  Table 1-5-1. equations, list of symbols
+      equations, symbols                         Description
+      (n)                                        Calculated value in a certain period
+      (n-1)                                      Calculated value in the previous cycle
+                                                 The calculated value Y at a given time is obtained by adding A to the
+      Y(n) = Y(n-1)+A
+                                                 calculated value Y of the previous cycle.
+      Y = MIN(A, B)                              Assign minimum value of A and B to Y
+      Y = MAX(A, B)                              Assign maximum value of A and B to Y
+      Y = LMT(X, A, B)                           Limit X to A <= X <= B and assign to Y
+      |A|                                        absolute value of A
+      A→B                                        cycle in which A changes to B
+      Y (n-1) [Initial value, X]                 Y in the first cycle is calculated as X in the previous cycle.
+
+
+1-6. ID Settings
+  An ID is assigned to each request to ensure traceability.
+  Example:SR_001 (*SR: Software Request)
+
+
+
+
+                                                                  10
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+2. Input
+2-1. input list
+   For details of CAN data and LIN data, refer to "SUZUKI LIN SPECIFICATION" and "SUZUKI CAN
+SPECIFICATION."
+
+
+  Table 2-1-1. CAN reception data list
+       CAN ID     CAN signal name                           Data Summary                                             Request ID
+                                                            Ventilated seat switch operation
+                  Seat Ventilation(Driver)
+                                                            information received from IDS (driver's                  (SR_0201_001)
+                  Setting Request
+                                                            side)
+                                                            Ventilated seat switch operation
+                  Seat Ventilation(Passenger)
+                                                            information received from IDS                            (SR_0201_002)
+                  Setting Request
+                                                            (passenger side)
+       3A5
+                  Seat Heater(Driver) Setting               Seat heater switch operation information
+                                                                                                                     (SR_0201_003)
+                  Request                                   received from IDS (driver's side)
+                  Seat Heater(Passenger)                    Seat heater switch operation information
+                                                                                                                     (SR_0201_004)
+                  Setting Request                           received from IDS (passenger side)
+                  Steering Heater Setting                   Steering heater switch operation
+                                                                                                                     (SR_0201_005)
+                  Request                                   information received from IDS
+
+
+  Table 2-1-2. Internal input data list
+                                                      Initial
+ Input data name            range of use                             Data Summary                              Request ID
+                                                      value
+                                                                     Vehicle power state. "IG1S"
+ power state                IG OFF/IG ON              IG OFF                                                   (SR_0201_006)
+                                                                     status
+ IDS communication                                                   Communication status
+                            Normal/Disrupted          Normal                                                   (SR_0201_007)
+ interruption fault                                                  between IDS and ECGW
+ ventilated seat                                                     Communication status
+ communication              Normal/Disrupted          Normal         between ventilated seat ECU               (SR_0201_008)
+ interruption failure                                                and ECGW
+ Steering heater                                                     Communication status
+ communication              Normal/Disrupted          Normal         between steering heater                   (SR_0201_009)
+ interruption failure                                                ECU and ECGW
+                                                                     Data received from air
+ Note: Judgment                                                      conditioning application
+ during drainage            OFF/ON                    OFF            Note: Data that determines                (SR_0201_010)
+ control                                                             whether drainage is under
+                                                                     control
+ Remote passenger           OFF/ON                    OFF            Remote ventilated seat
+ side ventilated seat                                                activation/deactivation status            (SR_0201_011)
+ operating condition
+ Remote driver side         OFF/ON                    OFF            Remote ventilated seat
+ ventilated seat                                                     activation/deactivation status            (SR_0201_012)
+ operating condition
+ Remote driver seat         OFF/ON                    OFF            Remote sheet heater
+ side seat heater                                                    operating/stopping state                  (SR_0201_013)
+ operating condition
+ Remote front               OFF/ON                    OFF            Remote sheet heater
+ passenger side seat                                                 operating/stopping state
+                                                                                                               (SR_0201_014)
+ heater operating
+ condition
+ Remote steering            OFF/ON                    OFF            Remote steering heater
+ heater operating                                                    operating/stopping state                  (SR_0201_015)
+ condition
+
+
+
+
+                                                                  11
+                                                                                                                               Confidential
+                          Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                 It is prohibited to copy, take out, or modify without permission from the system development group.
+
+Table 2-1-3. LIN received data list
+LIN ID   LIN signal name                               Data Summary                                         Request ID
+                                                       Ventilated seat operating information
+         Front Seat Vent Mode(Driver)                  received from the ventilated seat                    (SR_0201_011)
+                                                       ECU (driver's side)
+                                                       Ventilated seat operation information
+         Front Seat Vent
+                                                       received from the ventilated seat ECU                (SR_0201_012)
+         Mode(Passenger)
+                                                       (passenger side)
+                                                       Ventilated seat failure information
+         Front Seat Vent Blower
+                                                       received from the ventilated seat                    (SR_0201_013)
+         Status(Driver)
+                                                       ECU (driver's side)
+                                                       Ventilated seat failure information
+         Front Seat Vent Blower
+                                                       received from the ventilated seat                    (SR_0201_014)
+         Status(Passenger)
+                                                       ECU (passenger side)
+                                                       Seat heater operation information
+         Front Seat Heater Mode(Driver)                received from the ventilated seat                    (SR_0201_015)
+                                                       ECU (driver's side)
+                                                       Seat heater operation information
+         Front Seat Heater
+                                                       received from ventilated seat ECU                    (SR_0201_016)
+         Mode(Passenger)
+                                                       (passenger side)
+                                                       Seat heater failure information
+2D
+         Front Seat Heater Status(Driver)              received from the ventilated seat                    (SR_0201_017)
+                                                       ECU (driver's side)
+                                                       Seat heater failure information received
+         Front Seat Heater Status(Passenger)           from the ventilated seat ECU                         (SR_0201_018)
+                                                       (passenger side)
+         LIN Communication Error(Front                 LIN communication error received
+                                                                                                            (SR_0201_019)
+         Seat)                                         from ventilated seat ECU
+                                                       Ventilated seat equipment
+         Front Seat Vent Blower Equipped
+                                                       information received from the                        (SR_0201_020)
+         (Driver)
+                                                       ventilated seat ECU (driver's side)
+                                                       Ventilated seat equipment
+         Front Seat Vent Blower Equipped
+                                                       information received from the                        (SR_0201_021)
+         (Passenger)
+                                                       ventilated seat ECU (passenger side)
+                                                       Seat heater installation information
+         Front Seat Heater
+                                                       received from ventilated seat ECU                    (SR_0201_022)
+         Equipped(Driver)
+                                                       (driver's side)
+                                                       Seat heater installation information
+         Front Seat Heater Equipped
+                                                       received from ventilated seat ECU                    (SR_0201_023)
+         (Passenger)
+                                                       (passenger side)
+                                                       Operating information of the steering
+         Steering Heater Mode                          heater received from the steering                    (SR_0201_024)
+                                                       heater ECU
+                                                       Steering heater failure information
+         Steering Heater Status                        received from the steering heater                    (SR_0201_025)
+                                                       ECU
+         LIN Communication                             LIN communication error received
+29                                                                                                          (SR_0201_026)
+         Error(Steering Heater)                        from steering heater ECU
+                                                       Steering heater installation
+         Steering Heater Equipped(LIN)                 information received from the                        (SR_0201_027)
+                                                       steering heater ECU
+                                                       Operating time information of the
+         Steering Heater Time Up Request               steering heater received from the                    (SR_0201_028)
+                                                       steering heater ECU
+
+
+
+
+                                                                12
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+3. air conditioning control
+  In this chapter, air conditioning control is explained in each section.
+
+
+
+
+                                                                  13
+                                                                                                                                  Confidential
+                             Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                    It is prohibited to copy, take out, or modify without permission from the system development group.
+
+3-1. gateway function control
+  In this chapter, the air-conditioning gateway control is explained in each section.
+(1)control objective
+  ・Based on the operation information in IDS and remote function, the drive of ventilated seat ECU and steering
+heater ECU is controlled.
+  ・The actual operation state and failure state are received from the ventilated seat ECU and the steering heater
+ECU, and the display is instructed to the IDS (the customer is notified).
+
+
+(2)control overview
+  ・CAN signals by operation in IDS and remote function are converted into LIN signals and transmitted to
+ventilated seat ECU and steering heater ECU.
+  ・LIN signals from ventilated seat ECU and steering heater ECU are converted into CAN signals and transmitted
+to IDS.
+
+
+                                                                 ECGW
+                                                                                        LIN
+                                                                                        communica             Ventilated seat ECU
+
+                                                                                        tion
+                                                                                                            Sheet heater
+                                       CAN
+            integrated display         communica                                                            ventilated seat
+                  (IDS)                tion
+                                                                                        LIN
+                                                                                                              Steering heater ECU
+                                                                                        communica
+                                                                                        tion
+
+
+
+                                              Figure 3-1-1. Functional block diagram
+
+
+
+
+                                                                   14
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+3-1-1. Gateway/arbitration function (CAN communication →LIN communication conversion)
+(1)control objective
+  Based on operation information by IDS and remote operation information, the drive of ventilated seat ECU and
+steering heater ECU is controlled.
+(2)control overview
+  The CAN signal by the operation in IDS is converted into the LIN signal, and it is transmitted to ventilated seat
+ECU and steering heater ECU. Operation information in IDS and remote operation information are arbitrated and
+transmitted to ventilated seat ECU and steering heater ECU.
+  Regarding ventilated seats and seat heaters, the way of thinking of driver's seat side and passenger's seat side
+changes depending on whether driver's seat of a vehicle is on right or left, but it is not discriminated by control,
+since it can be discriminated by changing harness connection destination of ventilated ECU.
+
+
+The following figure shows the relationship between the air conditioning gateway function that receives operation
+information from IDS and the remote air conditioning function that receives remote operation.
+In this specification, IDS operation and remote operation are arbitrated and transmitted to ventilated seat ECU and
+steering heater ECU.
+
+
+
+                                                           ECGW
+                                                                                         LIN
+                                                Air-Conditioning Gateway                 communica          Ventilated seat ECU
+                           CAN
+                                                          Function                       tion
+    integrated display     communica
+          (IDS)                                                                          LIN
+                           tion                                                                             Steering heater ECU
+                                                                                         communica
+                                                                                         tion
+
+
+
+                                                                  internal data
+                         fault diagnosis
+          DCM            communication           Remote Air Conditioning
+
+                                                                                                                      Explanation in this
+
+    Figure 3-1-2. Relationship between Air-Conditioning Gateway Function and Remote Air-Conditioning Function
+
+
+
+
+                                                                  15
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+(3)Input data
+  Refer to "SUZUKI CAN SPECIFICATION" for details of CAN data.
+  Table 3-1-1. CAN reception data list
+      CAN ID      CAN signal name                                              Data Summary
+                                                                               Ventilated seat switch operation information
+                  Seat Ventilation(Driver) Setting Request                     received from IDS (driver's side)
+                                                                               Trigger information for switch operation *1
+                                                                               Ventilated seat switch operation information
+                  Seat Ventilation(Passenger) Setting Request                  received from IDS (passenger side)
+                                                                               Trigger information for switch operation *1
+                                                                               Seat heater switch operation information
+      3A5         Seat Heater(Driver) Setting Request                          received from IDS (driver's side)
+                                                                               Trigger information for switch operation *1
+                                                                               Seat heater switch operation information
+                  Seat Heater(Passenger) Setting Request                       received from IDS (passenger side)
+                                                                               Trigger information for switch operation *1
+                                                                               Steering heater switch operation information
+                  Steering Heater Setting Request                              received from IDS
+                                                                               Trigger information for switch operation *1
+    *1 For the trigger information of the switch operation in IDS, the corresponding signal is output for the specified
+time only when the operation changes.
+    For example, when the seat heater is operated to Mid⇒Hi, information of Hi is transmitted from the IDS for a
+    fixed time, and after the lapse of a fixed time, a $0: no operation signal is transmitted.
+
+
+  Table 3-1-2. Internal input data list
+                                                                   Initial
+      Input data name                    range of use                               Data Summary
+                                                                   value
+      power state                        IG OFF/IG ON              IG OFF           Vehicle power state. "IG1S" status
+      IDS communication                                                             Communication status between IDS and
+                                         Normal/Disrupted          Normal
+      interruption fault                                                            ECGW
+                                                                                    Data received from air conditioning
+      Note: Judgment during                                                         application
+                                         OFF/ON                    OFF
+      drainage control                                                              Note: Data that determines whether
+                                                                                    drainage is under control
+                                                                                    Control Request Specification _ Data to
+      Remote driver side                                                            be received from the Remote Air
+      ventilated seat operating          OFF/ON                    OFF              Conditioning Function
+      condition                                                                     Remote ventilated seat
+                                                                                    activation/deactivation status
+                                                                                    Control Request Specification _ Data to
+      Remote passenger side                                                         be received from the Remote Air
+      ventilated seat operating          OFF/ON                    OFF              Conditioning Function
+      condition                                                                     Remote ventilated seat
+                                                                                    activation/deactivation status
+                                                                                    Control Request Specification _ Data to
+      Remote driver seat side                                                       be received from the Remote Air
+      seat heater operating              OFF/ON                    OFF              Conditioning Function
+      condition                                                                     Remote sheet heater operating/stopping
+                                                                                    state
+                                                                                    Control Request Specification _ Data to
+      Remote front passenger                                                        be received from the Remote Air
+      side seat heater operating         OFF/ON                    OFF              Conditioning Function
+      condition                                                                     Remote sheet heater operating/stopping
+                                                                                    state
+
+
+
+                                                                  16
+                                                                                                                         Confidential
+                    Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+           It is prohibited to copy, take out, or modify without permission from the system development group.
+                                                                            Control Request Specification _ Data to
+                                                                            be received from the Remote Air
+Remote steering heater
+                                 OFF/ON                    OFF              Conditioning Function
+operating condition
+                                                                            Remote steering heater
+                                                                            operating/stopping state
+
+
+
+
+                                                          17
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+  Table 3-1-3. LIN received data list
+      LIN ID     LIN signal name                                               Data Summary
+                                                                               Operating time information of the steering
+      29         Steering Heater Time Up Request                               heater received from the steering heater
+                                                                               ECU
+
+
+(4)Output data
+  See "SUZUKI LIN SPECIFICATION" for details of LIN data.
+  Table 3-1-4. LIN transmission data list
+      LIN ID     LIN signal name                                           Data Summary
+                                                                           Ventilated seat operation information to be
+                 Front Seat Vent Request(Driver)                           transmitted to the ventilated seat ECU (driver's
+                                                                           side)
+                                                                           Ventilated seat operation information to be
+                 Front Seat Vent Request(Passenger)                        transmitted to the ventilated seat ECU
+                                                                           (passenger side)
+      2C
+                                                                           Seat heater operation information to be
+                 Front Seat Heater Request(Driver)                         transmitted to the ventilated seat ECU (driver's
+                                                                           side)
+                                                                           Seat heater operation information to be
+                 Front Seat Heater Request(Passenger)                      transmitted to ventilated seat ECU (passenger
+                                                                           side)
+                                                                           Steering heater operation information to be
+      28         Steering Heater Request
+                                                                           transmitted to the steering heater ECU
+
+
+  Table 3-1-5. Internal output data list
+                                                                                   Initial
+      Output data name                                      range of use                        Data Summary
+                                                                                   value
+      Operating condition of the ventilated seat                                                Data sent to air conditioning
+                                                            OFF/ON                 OFF
+      on the driver's side                                                                      application
+      Passenger side ventilated seat operating                                                  Data sent to air conditioning
+                                                            OFF/ON                 OFF
+      condition                                                                                 application
+      Operating condition of the driver's seat              OFF/ON                 OFF          Data sent to air conditioning
+      heater                                                                                    application
+      Operating condition of passenger seat                 OFF/ON                 OFF          Data sent to air conditioning
+      heater                                                                                    application
+                                                                                   OFF          Data sent to air conditioning
+      Steering heater operating condition                   OFF/ON
+                                                                                                application
+
+
+
+
+                                                                  18
+                                                                                                                                  Confidential
+                             Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                    It is prohibited to copy, take out, or modify without permission from the system development group.
+
+(5)control block diagram
+
+
+      power state                                                  Control
+                                                                                        Front Seat Vent Request(Driver)
+                                                                  Function
+      IDS communication interruption fault                                              Front Seat Vent Request(Passenger)
+                                                                        1
+      Note: Judgment during drainage                                                    Front Seat Heater Request(Driver)
+
+      Seat Ventilation(Driver) Setting                                                  Front Seat Heater Request(Passenger)
+      Request
+                                                                                        Steering Heater Request
+      Seat Ventilation(Passenger) Setting
+                                                                                        Operating condition of the ventilated
+      Request
+                                                                                        Passenger side ventilated seat
+      Seat Heater(Driver) Setting Request
+                                                                                        Operating condition of the driver's seat
+      Seat Heater(Passenger) Setting
+      Request                                                                           Operating condition of passenger seat
+
+      Steering Heater Setting Request                                                   Steering heater operating condition
+
+      Steering Heater Time Up Request
+
+      Remote driver side ventilated seat
+      operating condition
+
+      Remote passenger side ventilated
+      seat operating condition
+
+      Remote driver seat side seat heater
+
+      Remote front passenger side seat
+
+      Remote steering heater operating
+
+
+
+
+                                                                   19
+                                                                                                                                    Confidential
+                              Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                     It is prohibited to copy, take out, or modify without permission from the system development group.
+
+(6)Control functions (algorithms)
+  The CAN signal by IDS operation is converted into the LIN signal and transmitted to each ECU by the method
+shown in Table 3-1 6~3-1-10.
+
+
+  ■ventilated seat
+  The CAN signal received from the IDS is converted into the LIN signal and transmitted to the ventilated sheet
+ECU. And, the ventilated sheet is stopped, when the injection and drainage mode notice is received from IDS, to
+prevent the battery rising. The LIN signal is transmitted to the ventilated seat ECU according to the remote
+operation state received from the DCM.
+  Since the switch operation in the IDS is trigger information, the corresponding signal is output for the specified
+time only when the operation changes. Since continuous signal transmission is required for driving the ECU, the
+signal shall be output according to Table 3-1-6, 3-1-7, Figure 3-1-3, Figure 3-1-4.
+  If the preconditions and judgment conditions are not satisfied in each state, the previous value shall be output
+without performing state transition.
+
+
+                                                                                   E1-1
+    Default                        OFF                                                                                         Lo
+                  Front Seat Vent Request(Driver) =                                E1-2                        Front Seat Vent Request(Driver) =
+                                OFF                                                                                           Lo
+
+                                                                E1-9                         E1-11
+
+
+
+
+                        E1-8                 E1-7                                                                  E1-3                 E1-4
+
+
+
+
+                                                                 E1-10                      E1-12
+                                    Hi                                                                                        Mid
+                  Front Seat Vent Request(Driver) =                                E1-6                        Front Seat Vent Request(Driver) =
+                                 Hi                                                                                          Mid
+                                                                                   E1-5
+                     Figure 3-1-3. state transition of the driver's side ventilated seat activation request
+
+
+
+
+                                                                    20
+                                                                                                                               Confidential
+                          Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                 It is prohibited to copy, take out, or modify without permission from the system development group.
+
+Each transition condition in the state transition diagram is shown below.
+Table 3-1-6. State transition conditions for driver side ventilated seat activation request (SR_0301_1_001)
+    E1-1) Conditions for transition from OFF to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote driver side ventilated seat activation = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote driver side ventilated seat operating status = OFF→ON
+                   2. Seat Ventilation(Driver) Setting Request = $0→$4
+    E1-2) Conditions for transition from Lo to OFF * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote driver side ventilated seat activation = OFF and one of the following 1~3 is true:
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Ventilation(Driver) Setting Request = $0→$1
+
+                   ② Remote driver side ventilated seat operating status = ON and the following 4 is true:
+                   4. Remote driver side ventilated seat operating status = ON→OFF
+    E1-3) Conditions for transition from Lo to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote driver side ventilated seat activation = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Ventilation(Driver) Setting Request = $0→$3
+    E1-4) Conditions for transition from Mid to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote driver side ventilated seat activation = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote driver side ventilated seat operating status = OFF→ON
+                   2. Seat Ventilation(Driver) Setting Request = $0→$4
+
+
+
+
+                                                                21
+                                                                                                                             Confidential
+                        Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+               It is prohibited to copy, take out, or modify without permission from the system development group.
+  E1-5) Conditions for transition from Mid to Hi
+  Prerequisites The following (1) enacted
+                 1. Remote driver side ventilated seat activation = OFF
+  Judgment       The following (1) enacted
+  condition      1. Seat Ventilation(Driver) Setting Request = $0→$2
+  E1-6) Conditions for transition from Hi to Mid
+  Prerequisites The following (1) enacted
+                 1. Remote driver side ventilated seat activation = OFF
+  Judgment       The following (1) enacted
+  condition      1. Seat Ventilation(Driver) Setting Request = $0→$3
+  E1-7) Hi → OFF transition condition * 1
+  Judgment       The following (1) or (2) holds:
+  condition
+                 ① Remote driver side ventilated seat activation = OFF and one of the following 1~3 is true:
+                 1. Judgment during drainage control = ON
+                 2. IDS communication interruption failure = interruption
+                 3. Seat Ventilation(Driver) Setting Request = $0→$1
+
+                 ② Remote driver side ventilated seat operating status = ON and the following 4 is true:
+                 4. Remote driver side ventilated seat operating status = ON→OFF
+  E1-8) Conditions for transition from OFF to Hi
+  Prerequisites The following (1) enacted
+                 1. Remote driver side ventilated seat activation = OFF
+  Judgment       The following (1) enacted
+  condition      1. Seat Ventilation(Driver) Setting Request = $0→$2
+  E1-9) Conditions for transition from OFF to Mid
+  Prerequisites The following (1) enacted
+                 1. Remote driver side ventilated seat activation = OFF
+  Judgment       The following (1) enacted
+  condition      1. Seat Ventilation(Driver) Setting Request = $0→$3
+  E1-10) Conditions for transition from Hi to Lo
+  Prerequisites The following (1) enacted
+                 1. Remote driver side ventilated seat activation = OFF
+  Judgment       One of the following 1~2 is established
+  condition      1. Remote driver side ventilated seat operating status = OFF→ON
+                 2. Seat Ventilation(Driver) Setting Request = $0→$4
+  E1-11) Conditions for transition from Lo to Hi
+  Prerequisites The following (1) enacted
+                 1. Remote driver side ventilated seat activation = OFF
+  Judgment       The following (1) enacted
+  condition      1. Seat Ventilation(Driver) Setting Request = $0→$2
+  E1-12) Mid → OFF transition condition * 1
+  Judgment       The following (1) or (2) holds:
+  condition
+                 ① Remote driver side ventilated seat activation = OFF and one of the following 1~3 is true:
+                 1. Judgment during drainage control = ON
+                 2. IDS communication interruption failure = interruption
+                 3. Seat Ventilation(Driver) Setting Request = $0→$1
+
+                  ② Remote driver side ventilated seat operating status = ON and the following 4 is true:
+                  4. Remote driver side ventilated seat operating status = ON→OFF
+*1 When the OFF transition condition and other transition conditions are satisfied simultaneously, the OFF
+ transition is given priority. (SR_0301_1_011)
+
+
+
+
+                                                              22
+                                                                                                                                Confidential
+                           Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                  It is prohibited to copy, take out, or modify without permission from the system development group.
+                                                                             E1-1
+Default                      OFF                                                                                         Lo
+              Front Seat Vent Request(Driver) =                              E1-2                        Front Seat Vent Request(Driver) =
+                            OFF                                                                                         Lo
+
+                                                          E1-9                         E1-11
+
+
+
+
+                  E1-8                 E1-7                                                                  E1-3                   E1-4
+
+
+
+
+                                                           E1-10                      E1-12
+                              Hi                                                                                        Mid
+              Front Seat Vent Request(Driver) =                              E1-6                        Front Seat Vent Request(Driver) =
+                             Hi                                                                                        Mid
+                                                                             E1-5
+                  Figure 3-1-4. State transition of passenger side ventilated seat operation request
+
+
+Each transition condition in the state transition diagram is shown below.
+Table 3-1-7. Passenger side ventilated seat activation request state transition conditions (SR_0301_1_002)
+    E1-1) Conditions for transition from OFF to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote front passenger side ventilated seat operating status = OFF→ON
+                   2. Seat Ventilation(Passenger) Setting Request = $0→$4
+    E1-2) Conditions for transition from Lo to OFF * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote front passenger side ventilated seat activation state = OFF and one of the
+                   following 1~3 is true:
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Ventilation(Passenger) Setting Request = $0→$1
+
+                   ② Remote front passenger side ventilated seat operating status = ON and the following 4
+                   is true:
+                   4. Remote front passenger side ventilated seat operating status = ON→OFF
+    E1-3) Conditions for transition from Lo to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Ventilation(Passenger) Setting Request = $0→$3
+    E1-4) Conditions for transition from Mid to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote front passenger side ventilated seat operating status = OFF→ON
+                   2. Seat Ventilation(Passenger) Setting Request = $0→$4
+
+
+
+
+                                                                 23
+                                                                                                                          Confidential
+                         Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                It is prohibited to copy, take out, or modify without permission from the system development group.
+    E1-5) Conditions for transition from Mid to Hi
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Ventilation(Passenger) Setting Request = $0→$2
+    E1-6) Conditions for transition from Hi to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Ventilation(Passenger) Setting Request = $0→$3
+    E1-7) Hi → OFF transition condition * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote front passenger side ventilated seat activation state = OFF and one of the
+                   following 1~3 is true:
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Ventilation(Passenger) Setting Request = $0→$1
+    Note: When ECU_A interacts with ECU_B for seat ventilation control, it shall follow the sequence: 
+           1) ECU_A sends a request to stop other communications to ECU_B; 
+           2) ECU_A sends a request to start the process to ECU_B; 
+           3) ECU_A sends a request to check the status of the process to ECU_B; 
+           4) if the status is passed or failed, ECU_A sends a status report to the server. 
+           If this sequence is not followed, the system shall log a sequence error and notify the server.
+
+                   ② Remote front passenger side ventilated seat operating status = ON and the following 4
+                   is true:
+                   4. Remote front passenger side ventilated seat operating status = ON→OFF
+    E1-8) Conditions for transition from OFF to Hi
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Ventilation(Passenger) Setting Request = $0→$2
+    E1-9) Conditions for transition from OFF to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Ventilation(Passenger) Setting Request = $0→$3
+    E1-10) Conditions for transition from Hi to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote driver side ventilated seat operating status = OFF→ON
+                   2. Seat Ventilation(Passenger) Setting Request = $0→$4
+    E1-11) Conditions for transition from Lo to Hi
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side ventilated seat operating status = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Ventilation(Passenger) Setting Request = $0→$2
+    E1-12) Mid → OFF transition condition * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote front passenger side ventilated seat activation state = OFF and one of the
+                   following 1~3 is true:
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Ventilation(Passenger) Setting Request = $0→$1
+
+                   ② Remote front passenger side ventilated seat operating status = ON and the following 4
+                   is true:
+                   4. Remote front passenger side ventilated seat operating status = ON→OFF
+*1 When the OFF transition condition and other transition conditions are satisfied simultaneously, the OFF
+transition is given priority. (SR_0301_1_012)
+
+
+
+
+                                                               24
+                                                                                                                                  Confidential
+                             Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                    It is prohibited to copy, take out, or modify without permission from the system development group.
+
+  ■Sheet heater
+  The CAN signal received from the IDS is converted into the LIN signal and transmitted to the ventilated sheet ECU. And, the sheet heater is stopped when the spouting/drainage mode notice is received from the IDS to prevent the battery from rising. The LIN signal is transmitted to the ventilated seat ECU according to the remote operation state received from the DCM.
+  Since the switch operation in the IDS is trigger information, the corresponding signal is output for the specified time only when the operation changes. Since continuous signal transmission is required for driving the ECU, the signal shall be output according to Table 3-1-8, Table 3-1-9, and Figures 3-1-5 to 3-1-7. When the ventilated sheet ECU sends a request to start the heating process to the IDS without first sending a request to stop other communications to the IDS, the ventilated sheet ECU shall reject the process initiation and report a sequence error.
+  If the preconditions and judgment conditions are not satisfied in each state, the previous value shall be output without performing state transition.
+
+
+                                                                               E1-1
+  Default                      OFF                                                                                         Lo
+                Front Seat Heater Request(Driver) =                            E1-2                      Front Seat Heater Request(Driver) =
+                               OFF                                                                                       Lo
+
+                                                            E1-9                         E1-11
+
+
+
+
+                    E1-8                 E1-7                                                                 E1-3                    E1-4
+
+
+
+
+                                                             E1-10                      E1-12
+                                Hi                                                                                        Mid
+               Front Seat Heater Request(Driver) =                             E1-6                      Front Seat Heater Request(Driver) =
+                               Hi                                                                                       Mid
+                                                                               E1-5
+                             Figure 3-1-5. Status transition of driver's seat heater operation request
+
+
+
+
+                                                                   25
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+Each transition condition in the state transition diagram is shown below.
+  Table 3-1-8. Status transition condition for driver's seat heater activation request (SR_0301_1_003)
+      E1-1) Conditions for transition from OFF to Lo
+      Prerequisites The following (1) enacted
+                     1. Remote driver side seat heater working state = OFF
+      Judgment       One of the following 1~2 is established
+      condition      1. Remote driver's side seat heater working state = OFF→ON
+                     2. Seat Heater(Driver) Setting Request = $0→$4
+      E1-2) Conditions for transition from Lo to OFF * 1
+      Judgment       The following (1) or (2) holds:
+      condition
+                     ① Remote driver seat side seat heater operating state = OFF and one of the following 1~3
+                     is established.
+                     1. Judgment during drainage control = ON
+                     2. IDS communication interruption failure = interruption
+                     3. Seat Heater(Driver) Setting Request = $0→$1
+
+                     ② Remote driver seat side seat heater operating state = ON and the following 4 is
+                     established.
+                     4. Remote driver side seat heater operating state = ON→OFF
+      E1-3) Conditions for transition from Lo to Mid
+      Prerequisites The following (1) enacted
+                     1. Remote driver side seat heater working state = OFF
+      Judgment       The following (1) enacted
+      condition      1. Seat Heater(Driver) Setting Request = $0→$3
+      E1-4) Conditions for transition from Mid to Lo
+      Prerequisites The following (1) enacted
+                     1. Remote driver side seat heater working state = OFF
+      Judgment       One of the following 1~2 is established
+      condition      1. Remote driver's side seat heater working state = OFF→ON
+                     2. Seat Heater(Driver) Setting Request = $0→$4
+      E1-5) Conditions for transition from Mid to Hi
+      Prerequisites The following (1) enacted
+                     1. Remote driver side seat heater working state = OFF
+      Judgment       The following (1) enacted
+      condition      1. Seat Heater(Driver) Setting Request = $0→$2
+
+
+
+
+                                                                  26
+                                                                                                                              Confidential
+                         Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                It is prohibited to copy, take out, or modify without permission from the system development group.
+    E1-6) Conditions for transition from Hi to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote driver side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Driver) Setting Request = $0→$3
+    E1-7) Hi → OFF transition condition * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote driver seat side seat heater operating state = OFF and one of the following 1~3
+                   is established.
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Heater(Driver) Setting Request = $0→$1
+
+                   ② Remote driver seat side seat heater operating state = ON and the following 4 is
+                   established.
+                   4. Remote driver side seat heater operating state = ON→OFF
+    E1-8) Conditions for transition from OFF to Hi
+    Prerequisites The following (1) enacted
+                   1. Remote driver side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Driver) Setting Request = $0→$2
+    E1-9) Conditions for transition from OFF to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote driver side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Driver) Setting Request = $0→$3
+    E1-10) Conditions for transition from Hi to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote driver side seat heater working state = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote driver's side seat heater working state = OFF→ON
+                   2. Seat Heater(Driver) Setting Request = $0→$4
+    E1-11) Conditions for transition from Lo to Hi
+    Prerequisites The following (1) enacted
+                   1. Remote driver side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Driver) Setting Request = $0→$2
+    E1-12) Mid → OFF transition condition * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote driver seat side seat heater operating state = OFF and one of the following 1~3
+                   is established.
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Heater(Driver) Setting Request = $0→$1
+
+                   ② Remote driver seat side seat heater operating state = ON and the following 4 is
+                   established.
+                   4. Remote driver side seat heater operating state = ON→OFF
+*1 When the OFF transition condition and other transition conditions are satisfied simultaneously, the OFF
+transition is given priority. (SR_0301_1_013)
+
+
+
+
+                                                               27
+                                                                                                                                Confidential
+                           Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                  It is prohibited to copy, take out, or modify without permission from the system development group.
+                                                                             E1-1
+Default                      OFF                                                                                         Lo
+              Front Seat Heater Request(Driver) =                            E1-2                      Front Seat Heater Request(Driver) =
+                             OFF                                                                                       Lo
+
+                                                          E1-9                         E1-11
+
+
+
+
+                  E1-8                 E1-7                                                                 E1-3                    E1-4
+
+
+
+
+                                                           E1-10                      E1-12
+                              Hi                                                                                        Mid
+             Front Seat Heater Request(Driver) =                             E1-6                      Front Seat Heater Request(Driver) =
+                             Hi                                                                                       Mid
+                                                                             E1-5
+                         Figure 3-1-6. Status transition of passenger seat heater operation request
+
+
+Each transition condition in the state transition diagram is shown below.
+Table 3-1-9. State transition condition for passenger seat heater activation request (SR_0301_1_004)
+    E1-1) Conditions for transition from OFF to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote front passenger side seat heater working state = OFF→ON
+                   2. Seat Heater(Passenger) Setting Request = $0→$4
+    E1-2) Conditions for transition from Lo to OFF * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote front passenger side seat heater operating state = OFF and one of the
+                   following 1~3 is established.
+                   One of the following 1~3 is established
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Heater(Passenger) Setting Request = $0→$1
+
+                   ② Remote front passenger side seat heater operating state = ON and the following 4 is
+                   established.
+                   4. Remote front passenger side seat heater working state = ON→OFF
+    E1-3) Conditions for transition from Lo to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Passenger) Setting Request = $0→$3
+    E1-4) Conditions for transition from Mid to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote front passenger side seat heater working state = OFF→ON
+                   2. Seat Heater(Passenger) Setting Request = $0→$4
+
+
+
+
+                                                                 28
+                                                                                                                              Confidential
+                         Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                It is prohibited to copy, take out, or modify without permission from the system development group.
+    E1-5) Conditions for transition from Mid to Hi
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Passenger) Setting Request = $0→$2
+    E1-6) Conditions for transition from Hi to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Passenger) Setting Request = $0→$3
+    E1-7) Hi → OFF transition condition * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote front passenger side seat heater operating state = OFF and one of the
+                   following 1~3 is established.
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Heater(Passenger) Setting Request = $0→$1
+
+                   ② Remote front passenger side seat heater operating state = ON and the following 4 is
+                   established.
+                   4. Remote front passenger side seat heater working state = ON→OFF
+    E1-8) Conditions for transition from OFF to Hi
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Passenger) Setting Request = $0→$2
+    E1-9) Conditions for transition from OFF to Mid
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Passenger) Setting Request = $0→$3
+    E1-10) Conditions for transition from Hi to Lo
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       One of the following 1~2 is established
+    condition      1. Remote driver's side seat heater working state = OFF→ON
+                   2. Seat Heater(Passenger) Setting Request = $0→$4
+    E1-11) Conditions for transition from Lo to Hi
+    Prerequisites The following (1) enacted
+                   1. Remote front passenger side seat heater working state = OFF
+    Judgment       The following (1) enacted
+    condition      1. Seat Heater(Passenger) Setting Request = $0→$2
+    E1-12) Mid → OFF transition condition * 1
+    Judgment       The following (1) or (2) holds:
+    condition
+                   ① Remote front passenger side seat heater operating state = OFF and one of the
+                   following 1~3 is established.
+                   1. Judgment during drainage control = ON
+                   2. IDS communication interruption failure = interruption
+                   3. Seat Heater(Passenger) Setting Request = $0→$1
+
+                   ② Remote front passenger side seat heater operating state = ON and the following 4 is
+                   established.
+                   4. Remote front passenger side seat heater working state = ON→OFF
+*1 When the OFF transition condition and other transition conditions are satisfied simultaneously, the OFF
+transition is given priority. (SR_0301_1_014)
+
+
+
+                                                               29
+                                                                                                                               Confidential
+                          Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                 It is prohibited to copy, take out, or modify without permission from the system development group.
+
+The time chart of the function changing from CAN communication to LIN communication is shown below.
+Both ventilated seat and seat heater shall be output as shown in the following time chart.
+
+
+
+
+    Figure 3-1-7. CAN communication →LIN communication conversion time chart (example: sheet heater)
+
+
+
+
+                                                                30
+                                                                                                                                  Confidential
+                             Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                    It is prohibited to copy, take out, or modify without permission from the system development group.
+  ■Steering heater
+  The CAN signal received from the IDS is converted into the LIN signal and transmitted to the steering heater
+ECU.
+  When the injection/drainage mode notification is received from the IDS, the steering heater is stopped to prevent
+the battery from rising.
+  The LIN signal is transmitted to the steering heater ECU according to the remote operation state received from
+the DCM.
+  When the specified time has elapsed from the start of operation of the steering heater, the operation of the
+steering heater shall be turned OFF.
+  Since the switch operation in the IDS is trigger information, the corresponding signal is output for the specified
+time only when the operation changes. Since continuous signal transmission is required for driving the ECU, the
+signal shall be output according to Table 3-1-10 and Figures 3-1-8 to 3-1-10.
+  If the preconditions and judgment conditions are not satisfied in each state, the previous value shall be output
+without performing state transition.
+
+
+
+                                                                                E1-1
+    Default                          OFF                                                                               ON
+                                                                                E1-2
+                      Steering Heater Request = OFF                                                      Steering Heater Request = ON
+
+
+
+                                      Figure 3-1-8. Steering heater operating state transition
+
+
+  Table 3-1-10. Steering heater operating state transition conditions (SR_0301_1_005)
+       E1-1) Conditions for transition from OFF to ON
+       Prerequisites The following (1) enacted
+                      1. Remote steering heater operating status = OFF
+       Judgment       One of the following 1~2 is established
+       condition      1. Remote steering heater operating status = OFF→ON
+                      2. Steering Heater Setting Request = $0→$2
+       E1-2) Conditions for transition from ON to OFF
+       Judgment       The following (1) or (2) holds:
+       condition
+                      ① Remote steering heater operating state = OFF and one of the following 1~4 is true.
+                      1. Judgment during drainage control = ON
+                      2. IDS communication interruption failure = interruption
+                      3. Steering Heater Time Up Request = ON
+                      4. Steering Heater Setting Request = $0→$1
+
+                       ② Remote steering heater operating state = ON and the following 5 is true.
+                       5. Remote steering heater operating status = ON→OFF
+
+
+
+
+                                                                   31
+                                                                                                                                  Confidential
+                             Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                    It is prohibited to copy, take out, or modify without permission from the system development group.
+
+  The time chart of the function changing from CAN communication to LIN communication is shown below.
+  A steering heater drive/stop request based on user operation shall be output as shown in the following time
+chart.
+
+
+
+
+  Figure 3-1-9. CAN communication to LIN communication conversion time chart according to user operation (e.g.
+                                                            steering heater)
+
+
+
+
+  The operation after the specified time from the start of operation of the steering heater shall be output as shown
+in the following time chart.
+
+
+
+
+     Figure 3-1-10. CAN communication to LIN communication conversion time chart after specified time elapses
+                                                         (e.g. steering heater)
+
+
+
+
+                                                                   32
+                                                                                                                               Confidential
+                          Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                 It is prohibited to copy, take out, or modify without permission from the system development group.
+
+The contents of Table 3-1 11~3-1-15 define the data to be sent to the air conditioning application side.
+Table 3-1-11. Driver side ventilated seat operating status (SR_0301_1_006)
+                                                                                      Operating condition of the ventilated seat
+    Number     Priority    Condition
+                                                                                      on the driver's side
+    1           High       Front Seat Vent Request(Driver) ≠ OFF                      ON
+                 ↓
+    2           Low        Other than the above                                       OFF
+
+
+Table 3-1-12. Passenger side ventilated seat operating status (SR_0301_1_007)
+                                                                                      Passenger side ventilated seat operating
+    Number     Priority    Condition
+                                                                                      condition
+                High       Front Seat Vent Request(Passenger) ≠
+    1            ↓                                                                    ON
+                           OFF
+    2           Low        Other than the above                                       OFF
+
+
+Table 3-1-13. Operation status of the driver's seat heater (SR_0301_1_008)
+                                                                                      Operating condition of the driver's seat
+    Number     Priority    Condition
+                                                                                      heater
+                High       Front Seat Heater Request(Driver) ≠
+    1            ↓                                                                    ON
+                           OFF
+    2           Low        Other than the above                                       OFF
+
+
+Table 3-1-14. Passenger seat heater operating status (SR_0301_1_009)
+                                                                                      Operating condition of passenger seat
+    Number     Priority    Condition
+                                                                                      heater
+                High       Front Seat Heater Request(Passenger)
+    1                                                                                 ON
+                 ↓         ≠ OFF
+    2           Low        Other than the above                                       OFF
+
+
+Table 3-1-15. Steering heater operating status (SR_0301_1_010)
+    Number     Priority    Condition                                                  Steering heater operating condition
+    1           High       Steering Heater Request = ON                               ON
+                  ↓
+    2           Low        Other than the above                                       OFF
+
+
+
+
+                                                                33
+                                                                                                                                    Confidential
+                               Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                      It is prohibited to copy, take out, or modify without permission from the system development group.
+
+3-1-2. Gateway function (conversion from LIN communication to CAN communication)
+(1)control objective
+  The operation state and failure state received from the ventilated seat ECU and the steering heater ECU are
+displayed on the IDS.
+(2)control overview
+  ・LIN signals received from ventilated seat ECU and steering heater ECU are converted into CAN signals and
+transmitted to IDS.
+  ・The failure information received from the ventilated seat ECU and the steering heater ECU is displayed and
+instructed to the IDS.
+
+
+
+                                                                   ECGW
+                                                                                         LIN
+                                                                                         communica             Ventilated seat ECU
+
+                                                                                         tion
+
+                                       CAN
+                                                                                         LIN
+          integrated display           communica                                                              Steering heater ECU
+                                                                                         communica
+                 (IDS)                 tion
+                                                                                         tion
+
+
+                                                                                                                   Explanation in this
+
+
+                                                Figure 3-1-11. Functional block diagram
+
+
+
+
+                                                                     34
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+(3)Input data
+  See "SUZUKI LIN SPECIFICATION" for details of LIN data.
+  Table 3-1-16. LIN received data list
+      LIN ID     LIN signal name                                               Data Summary
+                                                                               Ventilated seat operating information
+                 Front Seat Vent Mode(Driver)                                  received from the ventilated seat ECU
+                                                                               (driver's side)
+                                                                               Ventilated seat operation information received
+                 Front Seat Vent Mode(Passenger)
+                                                                               from the ventilated seat ECU (passenger side)
+                                                                               Ventilated seat failure information received
+                 Front Seat Vent Blower Status(Driver)
+                                                                               from the ventilated seat ECU (driver's side)
+                                                                               Ventilated seat failure information received
+                 Front Seat Vent Blower Status(Passenger)                      from the ventilated seat ECU (passenger
+                                                                               side)
+                                                                               Seat heater operation information received
+                 Front Seat Heater Mode(Driver)
+                                                                               from the ventilated seat ECU (driver's side)
+                                                                               Seat heater operation information received
+                 Front Seat Heater Mode(Passenger)
+                                                                               from ventilated seat ECU (passenger side)
+                                                                               Seat heater failure information received from
+      2D         Front Seat Heater Status(Driver)
+                                                                               the ventilated seat ECU (driver's side)
+                                                                               Seat heater failure information received from
+                 Front Seat Heater Status(Passenger)
+                                                                               the ventilated seat ECU (passenger side)
+                                                                               LIN communication error received from
+                 LIN Communication Error(Front Seat)
+                                                                               ventilated seat ECU
+                                                                               Ventilated seat equipment information
+                 Front Seat Vent Blower Equipped (Driver)                      received from the ventilated seat ECU
+                                                                               (driver's side)
+                                                                               Ventilated seat equipment information
+                 Front Seat Vent Blower Equipped
+                                                                               received from the ventilated seat ECU
+                 (Passenger)
+                                                                               (passenger side)
+                                                                               Seat heater installation information received
+                 Front Seat Heater Equipped(Driver)
+                                                                               from ventilated seat ECU (driver's side)
+                                                                               Seat heater installation information received
+                 Front Seat Heater Equipped (Passenger)
+                                                                               from ventilated seat ECU (passenger side)
+                                                                               Operating information of the steering heater
+                 Steering Heater Mode
+                                                                               received from the steering heater ECU
+                                                                               Steering heater failure information received
+                 Steering Heater Status
+                                                                               from the steering heater ECU
+      29
+                                                                               LIN communication error received from
+                 LIN Communication Error(Steering Heater)
+                                                                               steering heater ECU
+                                                                               Steering heater installation information
+                 Steering Heater Equipped(LIN)
+                                                                               received from the steering heater ECU
+
+
+
+
+                                                                  35
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+
+  Table 3-1-17. Internal input data list
+                                                                               Initial
+      Input data name                               range of use                             Data Summary
+                                                                               value
+      ventilated seat communication                                                          Communication status between
+                                                    Normal/Disrupted           Normal
+      interruption failure                                                                   ventilated seat ECU and ECGW
+      Steering heater communication                                                          Communication status between
+                                                    Normal/Disrupted           Normal
+      interruption failure                                                                   steering heater ECU and ECGW
+
+
+(4)Output data
+  Refer to "SUZUKI CAN SPECIFICATION" for details of CAN data.
+  Table 3-1-18. CAN Transmitted Data List
+      CAN ID     CAN signal name                                           Data Summary
+                                                                           Ventilated seat operation information to be
+                 Seat Ventilation(Driver) Drive status
+                                                                           transmitted to IDS (driver's side)
+                                                                           Ventilated seat operation information to be
+                 Seat Ventilation(Passenger) Drive status
+                                                                           transmitted to IDS (passenger side)
+                                                                           Seat heater operation information to be
+                 Seat Heater(Driver) Drive Status
+                                                                           transmitted to IDS (driver's side)
+                                                                           Seat heater operation information to be
+                 Seat Heater(Passenger) Drive Status
+                                                                           transmitted to IDS (passenger side)
+                                                                           Steering heater operation information to be sent
+                 Steering Heater Drive Status
+                                                                           to IDS
+                                                                           Ventilated seat ECU failure information to be
+                 Front Seat ECU Failure status
+                                                                           transmitted to IDS
+      3E8
+                                                                           Steering heater ECU failure information sent to
+                 Steering Heater ECU Failure status
+                                                                           IDS
+                 Seat Ventilation(Driver) Equipped                         Ventilated seat information to be sent to IDS
+                                                                           (Driver)
+                 Seat Ventilation(Passenger) Equipped                      Ventilated seat equipment information to be sent
+                                                                           to IDS (Passenger)
+                 Seat Heater(Driver) Equipped                              Seat heater installation information to be sent to
+                                                                           IDS (Driver)
+                 Seat Heater(Passenger) Equipped                           Seat heater installation information to be sent to
+                                                                           IDS (Passenger)
+                 Steering Heater Equipped                                  Steering heater equipment information to be sent
+                                                                           to IDS
+
+
+
+
+                                                                  36
+                                                                                                                                    Confidential
+                               Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                      It is prohibited to copy, take out, or modify without permission from the system development group.
+
+(5)control block diagram
+
+      ventilated seat communication                                 control             Seat Ventilation(Driver) Drive status
+                                                                   function
+      Steering heater communication                                                     Seat Ventilation(Passenger) Drive status
+
+      Front Seat Vent Mode(Driver)                                                      Seat Heater(Driver) Drive Status
+
+      Front Seat Vent Mode(Passenger)                                                   Seat Heater(Passenger) Drive Status
+
+      Front Seat Vent Blower Status(Driver)                                             Steering Heater Drive Status
+
+      Front Seat Vent Blower                                                            Front Seat ECU Failure status
+      Status(Passenger)                                                                 Steering Heater ECU Failure status
+      Front Seat Heater Mode(Driver)                                                    Seat Ventilation(Driver) Equipped
+
+      Front Seat Heater Mode(Passenger)                                                 Seat Ventilation(Passenger) Equipped
+
+      Front Seat Heater Status(Driver)                                                  Seat Heater(Driver) Equipped
+
+      Front Seat Heater Status(Passenger)                                               Seat Heater(Passenger) Equipped
+
+      LIN Communication Error(Front Seat)                                               Steering Heater Equipped
+
+      Front Seat Vent Blower Equipped
+      (Driver)
+
+      Front Seat Vent Blower Equipped
+      (Passenger)
+
+      Front Seat Heater Equipped(Driver)
+
+      Front Seat Heater Equipped
+      (Passenger)
+
+      Steering Heater Mode
+
+
+      Steering Heater Status
+
+      LIN Communication Error(Steering
+      Heater)
+
+      Steering Heater Equipped(LIN)
+
+
+
+
+                                                                     37
+                                                                                                                                   Confidential
+                              Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                     It is prohibited to copy, take out, or modify without permission from the system development group.
+
+(6)Control functions (algorithms)
+  Convert the LIN signals received from each ECU to CAN signals and transmit them to the IDS by the method
+shown in Table 3-1 19~3-1-26.
+
+
+  ■ventilated seat
+  The LIN signal of the operation information received from the ventilated seat ECU is converted into CAN
+information and transmitted to the IDS.
+  Table 3-1-19. Driver/passenger ventilated seat activation information (SR_0301_2_001)
+      Nu                                                                                                    Seat
+                                                                         Seat Ventilation(Driver)
+      mbe     Priority      Condition                                                                       Ventilation(Passenger)
+                                                                         Drive status
+      r                                                                                                     Drive status
+                            Ventilated seat communication
+      1                     interruption failure =                       OFF                                OFF
+               High         Disconnection
+                ↓           LIN Communication Error(Front
+      2        Low                                                       OFF                                OFF
+                            Seat) = Error
+                                                                         Front Seat Vent                    Front Seat Vent
+      3                     Other than the above
+                                                                         Mode(Driver)                       Mode(Passenger)
+
+
+  ■Sheet heater
+  The LIN signal of the operation information received from the ventilated seat ECU is converted into CAN
+information and transmitted to the IDS.
+  Table 3-1-20 Driver/Passenger Seat Heater Operation Information (SR_0301_2_002)
+                                                                             Seat Heater(Driver)                 Seat Heater(Passenger)
+      Number      Priority     Condition
+                                                                             Drive Status                        Drive Status
+                               Ventilated seat communication
+      1                        interruption failure =                        OFF                                 OFF
+                     High      Disconnection
+                      ↓        LIN Communication Error(Front
+      2              Low                                                     OFF                                 OFF
+                               Seat) = Error
+                                                                             Front Seat Heater                   Front Seat Heater
+      3                        Other than the above
+                                                                             Mode(Driver)                        Mode(Passenger)
+
+
+  ■Steering heater
+  The LIN signal of the operation information received from the steering heater ECU is converted into CAN
+information and transmitted to the IDS.
+  Table 3-1-21 Steering Heater Operation Information (SR_0301_2_003)
+      Number      Priority     Condition                                                      Steering Heater Drive Status
+                               Steering heater communication interruption
+      1                                                                                       OFF
+                     High      failure = interruption
+                      ↓        LIN Communication Error(Steering Heater)=
+      2              Low                                                                      OFF
+                               Error
+      3                        Other than the above                                           Steering Heater Mode
+
+
+
+
+                                                                    38
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+  ■Fault information to be sent to IDS
+  The LIN signal of the failure information received from the ventilated seat ECU is converted into CAN information
+and transmitted to the IDS.
+  Since failure information to be transmitted to IDS is not detailed, and only that any failure occurs in ventilated
+ECU, it is transmitted as a failure when any failure related to ventilated ECU occurs.
+  Table 3-1-22 Ventilated Seat ECU Failure Conditions (SR_0301_2_004)
+      Nu
+                                                                                                    Front Seat ECU Failure
+      mbe     Priority   Condition                                                     Logic
+                                                                                                    status
+      r
+                         Ventilated seat communication interruption
+      1                                                                                -            Normal
+                         failure = Disconnection
+                         Front Seat Vent Blower Status(Driver) ≠
+      2
+                         Normal
+               High      Front Seat Vent Blower Status(Passenger) ≠
+      3         ↓        Normal
+               Low                                                                     OR           Fail
+      4                  Front Seat Heater Status(Driver) ≠ Normal
+                         Front Seat Heater Status(Passenger) ≠
+      5
+                         Normal
+      6                  LIN Communication Error(Front Seat) = Error
+      7                  Other than the above                                                       Normal
+
+
+  The LIN signal of failure information received from the steering heater ECU is converted into CAN information
+and transmitted to the IDS.
+  Since failure information to be transmitted to IDS is not detailed, but only that any failure occurs in the steering
+heater ECU, it is transmitted as a failure when any failure related to the steering heater ECU occurs.
+  Table 3-1-23 Steering Heater Failure Conditions (SR_0301_2_005)
+      Nu
+                                                                                                    Steering Heater ECU Failure
+      mbe     Priority   Condition                                                     Logic
+                                                                                                    status
+      r
+                         Steering heater communication interruption
+      1                                                                                -            Normal
+                         failure = interruption
+               High
+      2         ↓        Steering Heater Status ≠ Normal
+               Low       LIN Communication Error(Steering Heater)=                     OR           Fail
+      3
+                         Error
+      4                  Other than the above                                                       Normal
+
+
+
+
+                                                                  39
+                                                                                                                                 Confidential
+                            Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                   It is prohibited to copy, take out, or modify without permission from the system development group.
+  ■Equipment information to be sent to IDS
+  The LIN signal of equipment information received from the ventilated seat ECU is converted into CAN information
+and transmitted to the IDS.
+  The IDS controls whether the operation switch is displayed or not based on this equipment information.
+  It is controlled by equipment information transmitted from each ECU after the existence of ECU is confirmed by
+the number of LIN reception.
+  Table 3-1-24. Driver/front passenger ventilated seat installation information (SR_0301_2_006)
+      Nu                                                                                                  Seat
+                                                                       Seat Ventilation(Driver)
+      mbe    Priority   Condition                                                                         Ventilation(Passenger)
+                                                                       Equipped *2
+      r                                                                                                   Equipped *2
+                        Ventilated seat communication
+      1                 interruption failure =                         Not Equipped                       Not Equipped
+               High
+                ↓       Disconnection
+               Low      LIN ID$2D Received times >= 2                  Front Seat Vent Blower             Front Seat Vent Blower
+      2
+                        times *1                                       Equipped (Driver)                  Equipped (Passenger)
+      3                 Other than the above                           Not Equipped                       Not Equipped
+   *Indicates that the message is received twice in a row.
+   *2 The initial value is $0=Not Equipped. (SR_0301_2_009)
+
+
+  Table 3-1-25. Driver side/passenger side seat heater installation information (SR_0301_2_007)
+      Nu
+                                                                       Seat Heater(Driver)                Seat Heater(Passenger)
+      mbe    Priority   Condition
+                                                                       Equipped *2                        Equipped *2
+      r
+                        Ventilated seat communication
+      1                 interruption failure =                         Not Equipped                       Not Equipped
+               High
+                ↓       Disconnection
+               Low      LIN ID$2D Received times >= 2                  Front Seat Heater                  Front Seat Heater
+      2
+                        times *1                                       Equipped(Driver)                   Equipped (Passenger)
+      3                 Other than the above                           Not Equipped                       Not Equipped
+   *Indicates that the message is received twice in a row.
+   *2 The initial value is $0=Not Equipped. (SR_0301_2_010)
+
+
+  The LIN signal of equipment information received from the steering heater ECU is converted into CAN
+information and transmitted to the IDS.
+  The IDS controls whether the operation switch is displayed or not based on this equipment information.
+  It is controlled by equipment information transmitted from each ECU after the existence of ECU is confirmed by
+the number of LIN reception.
+  Table 3-1-26. Steering Heater Equipment Information (SR_0301_2_008)
+      Nu
+      mbe    Priority   Condition                                                  Steering Heater Equipped *2
+      r
+                        Steering heater communication
+      1        High                                                                Not Equipped
+                ↓       interruption failure = interruption
+      2        Low      LIN ID$29 Received times >= 2 times *1                     Steering Heater Equipped(LIN)
+      3                 Other than the above                                       Not Equipped
+   *Indicates that the message is received twice in a row.
+   *2 The initial value is $0=Not Equipped. (SR_0301_2_011)
+
+
+
+                                                                  40
+                                                                                                              Confidential
+         Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+It is prohibited to copy, take out, or modify without permission from the system development group.
+
+
+
+
+                                               41
+                                                                                                                                  Confidential
+                             Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                    It is prohibited to copy, take out, or modify without permission from the system development group.
+
+3-1-3. fault diagnosis output function
+(1)control objective
+  The failure states of the ventilated seat ECU and the steering heater ECU are output as DTC.
+(2)control overview
+  Failure information received from the ventilated seat ECU and the steering heater ECU is output by DTC.
+
+
+
+                                                                 ECGW                     LIN
+                                                                                          communica         Ventilated seat ECU
+
+                                                                                          tion
+
+
+                                                                                          LIN
+                                                                                                           Steering heater ECU
+                                                                                          communica
+                                                                                          tion
+
+                                             Figure 3 -1-12. Functions Block diagram
+(3)Input data
+  Table 3-1-27. LIN received data list
+       LIN ID     LIN signal name                                               Data Summary
+                                                                                Ventilated seat failure information received
+                  Front Seat Vent Blower Status(Driver)
+                                                                                from the ventilated seat ECU (driver's side)
+                                                                                Ventilated seat failure information received
+                  Front Seat Vent Blower Status(Passenger)                      from the ventilated seat ECU (passenger
+                                                                                side)
+       2D         Front Seat Heater Status(Driver)
+                                                                                Seat heater failure information received from
+                                                                                the ventilated seat ECU (driver's side)
+                                                                                Seat heater failure information received from
+                  Front Seat Heater Status(Passenger)
+                                                                                the ventilated seat ECU (passenger side)
+                                                                                LIN communication error received from
+                  LIN Communication Error(Front Seat)
+                                                                                ventilated seat ECU
+                                                                                Steering heater failure information received
+                  Steering Heater Status
+                                                                                from the steering heater ECU
+       29
+                                                                                LIN communication error received from
+                  LIN Communication Error(Steering Heater)
+                                                                                steering heater ECU
+
+
+  Table 3-1-28. Internal input data list
+                                                                                Initial
+       Input data name                               range of use                                Data Summary
+                                                                                value
+       ventilated seat communication                                                             Communication status between
+                                                     Normal/Disrupted           Normal
+       interruption failure                                                                      ventilated seat ECU and ECGW
+       Steering heater communication                                                             Communication status between
+                                                     Normal/Disrupted           Normal
+       interruption failure                                                                      steering heater ECU and ECGW
+
+
+(4)Output data
+  Table 3-1-29. Fault diagnosis communication output data list
+                                                                          Initial
+       Output data name                                range of use               Data Summary
+                                                                          value
+       DTC code                                        See "SUZUKI SDL on CAN-UDS SPECIFICATION"
+
+
+
+                                                                   42
+                                                                                                                                Confidential
+                           Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                  It is prohibited to copy, take out, or modify without permission from the system development group.
+
+(5)control block diagram
+
+      ventilated seat communication                             control             DTC code
+                                                               function
+      Steering heater communication
+
+      Front Seat Vent Blower Status(Driver)
+
+      Front Seat Vent Blower
+      Status(Passenger)
+
+      Front Seat Heater Status(Driver)
+
+      Front Seat Heater Status(Passenger)
+
+      Steering Heater Status
+
+      LIN Communication Error(Front Seat)
+
+      LIN Communication Error(Steering
+      Heater)
+
+
+
+
+                                                                 43
+                                                                                                                                    Confidential
+                               Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                      It is prohibited to copy, take out, or modify without permission from the system development group.
+
+(6) Control functions (algorithms)
+  When there is a DTC read request using the fault diagnosis tool, the DTC code associated with the following fault details is output.
+  For the DTC code, refer to "SUZUKI SDL on CAN-UDS SPECIFICATION."
+  Table 3-1-30. DTC output of failure information from ventilated seat ECU (SR_0301_3_001)
+       Number        Condition                                                           failure description
+       1                                                                      $0         No failure
+                                                                                         Ventilated seat short-circuit (driver's side)
+       2                                                                      $1         *2
+                                                                                         Front Seat Vent Over Current (Driver)
+                     Front Seat Vent Blower Status(Driver)                               Ventilated seat broken (driver's side) *2
+       3                                                                      $2
+                                                                                         Front Seat Vent Under Current (Driver)
+                                                                                         Defective IPD for motor (driver's seat side)
+       4                                                                      $3         *1
+                                                                                         Front Seat Vent IPD Fault (Driver)
+       5                                                                      $0         No failure
+                                                                                         Ventilated seat short-circuit (passenger
+       6                                                                      $1         side) *3
+                     Front Seat Vent Blower                                              Front Seat Vent Over Current (Passenger)
+                     Status(Passenger)                                                   Ventilated seat broken (passenger side) *3
+       7                                                                      $2
+                                                                                         Front Seat Vent Under Current (Passenger)
+                                                                                         Defective IPD for motor (passenger side) *1
+       8                                                                      $3
+                                                                                         Front Seat Vent IPD Fault (Passenger)
+       9                                                                      $0         No failure
+                                                                                         Seat heater short-circuit (driver's side) *4
+       10                                                                     $1
+                                                                                         Seat Heater Over Current (Driver)
+                                                                                         Seat heater broken (driver's side) *4
+       11                                                                     $2
+                                                                                         Seat Heater Under Current (Driver)
+                                                                                         Defective IPD for heater (driver's side) *1
+       12            Front Seat Heater Status(Driver)                         $3
+                                                                                         Seat Heater IPD Fault (Driver)
+                                                                                         Thermistor fault (driver's side)
+       13                                                                     $4
+                                                                                         Seat Heater Thermister Fault (Driver)
+                                                                                         Seat temperature rise abnormality (driver's
+       14                                                                     $5         side)
+                                                                                         Seat Heater Thermal Fault (Driver)
+       15                                                                     $0         No failure
+                                                                                         Seat heater short-circuit (passenger side)
+       16                                                                     $1         *5
+                                                                                         Seat Heater Over Current (Passenger)
+                                                                                         Seat heater broken (passenger side) *5
+       17                                     If Ventilated Seat ECU sends a request to start a process to another ECU without first executing the step "Ventilated Seat ECU send request to stop other communication to the other ECU", 
+                     Front Seat Heater Status(Passenger)                                 then the Ventilated Seat ECU shall reject the process initiation and report a sequence error.
+       18                                                                     $3         *1
+                                                                                         Seat Heater IPD Fault (Passenger)
+                                                                                         Thermistor fault (passenger side)
+       19                                                                     $4
+                                                                                         Seat Heater Thermister Fault (Passenger)
+                                                                                         Seat temperature rise (passenger side)
+       20                                                                     $5
+                                                                                         Seat Heater Thermal Fault (Passenger)
+       21                                                                     $0         No failure
+                                                                                         Ventilated seat ECU LIN communication
+                     LIN Communication Error(Front Seat)
+       22                                                                     $1         error
+                                                                                         LIN Communication Error(Front Seat)
+    *No DTC allocation on 1YY8.
+    *2 DTC B203A-14 ventilated seat (Short circuit, open circuit) (driver's side).
+    *3 DTC B203B-14 ventilated seat (Short circuit, open circuit) (passenger side).
+    *4 DTC B203C-14 seat heater (Short circuit, open circuit) (driver's side).
+
+                                                                     44
+                                                                                                                            Confidential
+                       Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+              It is prohibited to copy, take out, or modify without permission from the system development group.
+
+*5 DTC B203F-14 seat heater (Short circuit, open circuit) (passenger side).
+
+
+
+
+                                                             45
+                                                                                                                                    Confidential
+                               Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                      It is prohibited to copy, take out, or modify without permission from the system development group.
+
+  When there is a DTC read request using the fault diagnosis tool, the DTC code associated with the following fault
+details is output.
+  For the DTC code, refer to "SUZUKI SDL on CAN-UDS SPECIFICATION."
+  Table 3-1-31. DTC output of failure information from steering heater ECU (SR_0301_3_002)
+       Number        Condition                                                           failure description
+       1                                                                      $0         No failure
+                                                                                         Steering heater shorted *2
+       2                                                                      $1
+                                                                                         Steering Heater Over Current
+                                                                                         Steering heater broken *2
+       3                                                                      $2
+                                                                                         Steering Heater Under Current
+                     Steering Heater Status                                              IPD failure for heater *1
+       4                                                                      $3
+                                                                                         Steering Heater IPD Fault
+                                                                                         Thermistor fault *1
+       5                                                                      $4
+                                                                                         Steering Heater Thermister Fault
+                                                                                         Steering heater temperature rise error *1
+       6                                                                      $5
+                                                                                         Steering Heater Thermal Fault
+       7                                                                      $0         No failure
+                     LIN Communication Error(Steering                                    Steering heater ECU LIN communication
+       8             Heater)                                                  $1         error
+                                                                                         LIN Communication Error(Steering Heater)
+    *No DTC allocation on 1YY8.
+   *2 DTC B2042-14 steering heaters (Short circuit, open circuit).
+
+
+
+
+                                                                     46
+                                                                                                                                   Confidential
+                              Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                     It is prohibited to copy, take out, or modify without permission from the system development group.
+
+3-2. refrigerant specification discrimination control
+(1)control objective
+  For air conditioning control of A/C ECU.
+(2)control overview
+  Refrigerant type information is written in ECU in our company factory, and the refrigerant type is decided by the
+written information. The determined refrigerant type is transmitted to the A/C ECU by CAN.
+
+
+  Refrigerant type                                               ECGW
+
+  information writing                                                                  CAN
+       HFO1234yf (new                                                                                             A/C ECU
+                                                                                       communica
+       refrigerant)
+     HFC134a (current                                                                  tion
+         refrigerant)             fault diagnosis
+                                  communicatio
+                                  n
+
+                                               Figure 3-2-1. Functional block diagram
+
+
+(3)Input data
+  None
+
+
+(4)Output data
+  Table 3-2-1. Refrigerant specification control output setting
+                                                                                  Initial
+       Output data name                   range of use                                         Data Summary
+                                                                                  value
+                                          $0 = HFO1234yf (new ref
+                                          rigerant)                                            Data to be transmitted to the A/C
+       Refrigerant Type                                                           $0
+                                          $1 = HFC134a (current re                             ECU
+                                          frigerant)
+
+
+(5)control block diagram
+
+       HFO1234yf (new refrigerant)                                 control             Refrigerant Type
+                                                                  function
+       HFC134a (current refrigerant)
+
+
+
+
+(6)Control functions (algorithms)
+  New refrigerant and current refrigerant are identified by variant writing. Refer to the "Body Application Function
+Table" for information on refrigerant types used for variant writing.
+  Table 3-2-2. Coolant specification identification by writing variants (SR_0302_001)
+       Variant write information                               software part number            Refrigerant Type
+       HFO1234yf (new refrigerant)                             AAAAA-BBBBB                     $0 = HFO1234yf (new refrigerant)
+       HFC134a (current refrigerant)                           AAAAA-CCCCC                     $1 = HFC134a (current refrigerant)
+
+
+                                                                    47
+                                                                                                              Confidential
+         Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+It is prohibited to copy, take out, or modify without permission from the system development group.
+
+
+
+
+                                               48
+                                                                                                                                  Confidential
+                             Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                    It is prohibited to copy, take out, or modify without permission from the system development group.
+
+4. Output
+
+4-1. output list
+   For details of CAN data and LIN data, refer to "SUZUKI LIN SPECIFICATION" and "SUZUKI CAN
+SPECIFICATION."
+  Table 4-1-1. CAN Transmitted Data List
+       CAN ID      CAN signal name                           Data Summary                                             Request ID
+                   Seat Ventilation(Driver) Drive            Ventilated seat operation information to                 (SR_0401_001)
+                   status                                    be transmitted to IDS (driver's side)
+                   Seat Ventilation(Passenger)               Ventilated seat operation information to                 (SR_0401_002)
+                   Drive status                              be transmitted to IDS (passenger side)
+                   Seat Heater(Driver) Drive                 Seat heater operation information to be                  (SR_0401_003)
+                   Status                                    transmitted to IDS (driver's side)
+                   Seat Heater(Passenger) Drive              Seat heater operation information to be                  (SR_0401_004)
+                   Status                                    transmitted to IDS (passenger side)
+                                                             Steering heater operation information to                 (SR_0401_005)
+                   Steering Heater Drive Status
+                                                             be sent to IDS
+                                                             Ventilated seat ECU failure information                  (SR_0401_006)
+                   Front Seat ECU Failure status
+                                                             to be transmitted to IDS
+       3E8
+                   Steering Heater ECU Failure               Steering heater ECU failure information                  (SR_0401_007)
+                   status                                    sent to IDS
+                   Seat Ventilation(Driver)                  Ventilated seat information to be sent to                (SR_0401_008)
+                   Equipped                                  IDS (Driver)
+                   Seat Ventilation(Passenger)               Ventilated seat equipment information to                 (SR_0401_009)
+                   Equipped                                  be sent to IDS (Passenger)
+                   Seat Heater(Driver) Equipped              Seat heater installation information to be               (SR_0401_010)
+                                                             sent to IDS (Driver)
+                   Seat Heater(Passenger)                    Seat heater installation information to be               (SR_0401_011)
+                   Equipped                                  sent to IDS (Passenger)
+                   Steering Heater Equipped                  Steering heater equipment information                    (SR_0401_012)
+                                                             to be sent to IDS
+                                                             Refrigerant specifications to be sent to                 (SR_0401_013)
+       41C         Refrigerant Type
+                                                             the A/C ECU
+
+
+  Table 4-1-2. LIN transmission data list
+       LIN ID      LIN signal name                           Data Summary                                             Request ID
+                                                             Ventilated seat operation information to                 (SR_0401_014)
+                   Front Seat Vent
+                                                             be transmitted to the ventilated seat
+                   Request(Driver)
+                                                             ECU (driver's side)
+                                                             Ventilated seat operation information to                 (SR_0401_015)
+                   Front Seat Vent
+                                                             be transmitted to the ventilated seat
+                   Request(Passenger)
+                                                             ECU (passenger side)
+       2C
+                                                             Seat heater operation information to be                  (SR_0401_016)
+                   Front Seat Heater
+                                                             transmitted to the ventilated seat ECU
+                   Request(Driver)
+                                                             (driver's side)
+                                                             Seat heater operation information to be                  (SR_0401_017)
+                   Front Seat Heater
+                                                             transmitted to ventilated seat ECU
+                   Request(Passenger)
+                                                             (passenger side)
+                                                             Steering heater operation information to                 (SR_0401_018)
+       28          Steering Heater Request                   be transmitted to the steering heater
+                                                             ECU
+
+
+
+
+                                                                   49
+                                                                                                                               Confidential
+                          Information Electronics, Automobile Electronic System Development Department, Suzuki Motor Corporation
+                 It is prohibited to copy, take out, or modify without permission from the system development group.
+
+Table 4-1-3. Internal output data list
+                                                                     Initial
+    Output data name                         range of use                        Data Summary                       Request ID
+                                                                     value
+    Operating condition of the
+                                                                                 Data sent to air
+    ventilated seat on the driver's          OFF/ON                  OFF                                            (SR_0401_019)
+                                                                                 conditioning application
+    side
+    Passenger side ventilated seat                                               Data sent to air
+                                             OFF/ON                  OFF                                            (SR_0401_020)
+    operating condition                                                          conditioning application
+    Operating condition of the                                                   Data sent to air
+                                             OFF/ON                  OFF                                            (SR_0401_021)
+    driver's seat heater                                                         conditioning application
+    Operating condition of                                                       Data sent to air
+                                             OFF/ON                  OFF                                            (SR_0401_022)
+    passenger seat heater                                                        conditioning application
+    Steering heater operating                                                    Data sent to air
+                                             OFF/ON                  OFF                                            (SR_0401_023)
+    condition                                                                    conditioning application
+
+
+
+
+                                                                50
+
