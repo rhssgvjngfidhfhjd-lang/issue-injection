@@ -35,13 +35,13 @@ def main():
             missing_files.append(file)
     
     if missing_files:
-        print("❌ Missing required files:")
+        print("Missing required files:")
         for file in missing_files:
             print(f"   - {file}")
         print("\nPlease ensure all required files are present before running the demo.")
         return 1
     
-    print("✅ All required files found")
+    print("All required files found")
     print("\nDemo Options:")
     print("1. Quick test (scan and match only)")
     print("2. Full injection (with LLM processing)")
@@ -67,46 +67,46 @@ def main():
         print("\n\nDemo cancelled by user.")
         return 0
     except Exception as e:
-        print(f"\n❌ Error during demo: {e}")
+        print(f"\nError during demo: {e}")
         return 1
     
     return 0
 
 def run_quick_test(rules_file, crd_dir, threshold):
     """Run a quick test to show matching without LLM processing"""
-    print("\n🔍 Running quick test (scan and match only)...")
+    print("\nRunning quick test (scan and match only)...")
     
     try:
         from inject_ears import EARSInjector
         
         # Initialize injector
         injector = EARSInjector(rules_file, threshold=threshold)
-        print(f"✅ Loaded {len(injector.rules)} EARS rules")
+        print(f"Loaded {len(injector.rules)} EARS rules")
         
         # Scan CRD files
         crd_files = injector.scan_crd_files(crd_dir)
-        print(f"✅ Found {len(crd_files)} CRD files")
+        print(f"Found {len(crd_files)} CRD files")
         
         # Find matches
         matches = injector.find_matches(crd_files)
-        print(f"✅ Found {len(matches)} potential matches")
+        print(f"Found {len(matches)} potential matches")
         
         if matches:
-            print("\n📋 Match Summary:")
+            print("\nMatch Summary:")
             for i, match in enumerate(matches[:3], 1):  # Show first 3 matches
                 print(f"{i}. Rule {match['rule_idx']}: {match['ecu_section']}")
                 print(f"   Score: {match['match_score']:.3f}, Status: {match['status']}")
         else:
-            print("ℹ️  No matches found with current threshold")
+            print("No matches found with current threshold")
         
     except ImportError as e:
-        print(f"❌ Import error: {e}")
+        print(f"Import error: {e}")
         print("Please ensure all dependencies are installed.")
 
 def run_full_injection(rules_file, crd_dir, threshold):
     """Run full injection with LLM processing"""
-    print("\n🚀 Running full injection (requires LLM)...")
-    print("⚠️  Note: This requires a running Ollama instance with llama3.3:latest model")
+    print("\nRunning full injection (requires LLM)...")
+    print("Note: This requires OpenAI API access")
     
     confirm = input("Continue? (y/N): ").strip().lower()
     if confirm != 'y':
@@ -124,16 +124,16 @@ def run_full_injection(rules_file, crd_dir, threshold):
             print(f"Processing {len(matches)} matches...")
             injected_matches = injector.inject_rules(matches)
             injector.generate_outputs(injected_matches, ".", apply_patches=False)
-            print("✅ Injection complete! Check 'issue_injection_trace.txt' for results.")
+            print("Injection complete! Check 'issue_injection_trace.txt' for results.")
         else:
-            print("ℹ️  No matches found to process.")
+            print("No matches found to process.")
             
     except Exception as e:
-        print(f"❌ Error during injection: {e}")
+        print(f"Error during injection: {e}")
 
 def show_ears_rules(rules_file):
     """Display available EARS rules"""
-    print("\n📜 Available EARS Rules:")
+    print("\nAvailable EARS Rules:")
     print("-" * 50)
     
     try:
@@ -145,11 +145,11 @@ def show_ears_rules(rules_file):
                     display_rule = line[:80] + "..." if len(line) > 80 else line
                     print(f"{i:2d}. {display_rule}")
     except Exception as e:
-        print(f"❌ Error reading EARS rules: {e}")
+        print(f"Error reading EARS rules: {e}")
 
 def show_crd_structure(crd_dir):
     """Display CRD file structure"""
-    print("\n📁 CRD File Structure:")
+    print("\nCRD File Structure:")
     print("-" * 30)
     
     try:
@@ -163,7 +163,7 @@ def show_crd_structure(crd_dir):
             print(f"{i:2d}. [{section.start_line:3d}-{section.end_line:3d}] {section.name}")
             
     except Exception as e:
-        print(f"❌ Error analyzing CRD structure: {e}")
+        print(f"Error analyzing CRD structure: {e}")
 
 if __name__ == "__main__":
     sys.exit(main())

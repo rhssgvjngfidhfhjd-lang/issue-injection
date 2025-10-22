@@ -4,7 +4,7 @@ EARS Rule Injector - SECURITY NOTICE
 
 This script processes CONFIDENTIAL CRD documents. All processing is done locally.
 - Files are NOT uploaded to external servers
-- LLM processing uses local Ollama instance only
+- LLM processing uses OpenAI API
 - Output files contain document fragments - handle with appropriate security measures
 - Consider deleting output files after use if confidentiality is critical
 
@@ -38,13 +38,13 @@ except ImportError:
 
 import requests
 
-# Import configuration from ollama_api.py
+# Import configuration from openai_api.py
 try:
-    from ollama_api import base_url as OLLAMA_BASE_URL, api_key as OLLAMA_API_KEY, client as OLLAMA_CLIENT, model_name as OLLAMA_MODEL_NAME
-    OLLAMA_CONFIG_AVAILABLE = True
+    from openai_api import client as OPENAI_CLIENT
+    OPENAI_CONFIG_AVAILABLE = True
 except ImportError:
-    OLLAMA_CONFIG_AVAILABLE = False
-    print("Warning: ollama_api.py not found, using default configuration")
+    OPENAI_CONFIG_AVAILABLE = False
+    print("Warning: openai_api.py not found, using default configuration")
 
 
 # 解析和标准化EARS规则
@@ -244,14 +244,14 @@ If no ECU found in text content, return only: {{"ecu_components": []}}"""
         
         try:
             # 调用LLM进行智能识别
-            response = self.llm_client._call_ollama_http(prompt)
+            response = self._call_openai_api(prompt)
             
             # 解析LLM响应并转换为ecu_conditions格式
             ecu_conditions = self._parse_llm_ecu_response(response)
             return ecu_conditions
             
         except Exception as e:
-            print(f"LLM扫描出错: {e}")
+            print(f"LLM scan error: {e}")
             return ecu_conditions
     
     def _parse_llm_ecu_response(self, llm_response: str) -> List[Dict]:
@@ -382,9 +382,14 @@ class CRDFile:
             with open(self.file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except UnicodeDecodeError:
-            # Fallback to latin-1 if UTF-8 fails
-            with open(self.file_path, 'r', encoding='latin-1') as f:
-                return f.read()
+            try:
+                # Fallback to latin-1 if UTF-8 fails
+                with open(self.file_path, 'r', encoding='latin-1') as f:
+                    return f.read()
+            except UnicodeDecodeError:
+                # Final fallback with error replacement
+                with open(self.file_path, 'r', encoding='utf-8', errors='replace') as f:
+                    return f.read()
     
     def _split_sections(self) -> List[CRDSection]:
         """Split file into sections based on numbered headings only."""
@@ -481,14 +486,14 @@ class CRDFile:
 
 
 class LLMClient:
-    """Client for interacting with LLM endpoint using Ollama API."""
+    """Client for interacting with LLM endpoint using OpenAI API."""
     
     def __init__(self, base_url: str = None, api_key: str = None):
-        # Use configuration from ollama_api.py if available, otherwise use environment variables
-        if OLLAMA_CONFIG_AVAILABLE:
-            self.base_url = base_url or OLLAMA_BASE_URL
-            self.api_key = api_key or OLLAMA_API_KEY
-            self.client = OLLAMA_CLIENT  # Use the pre-configured client
+        # Use configuration from openai_api.py if available, otherwise use environment variables
+        if OPENAI_CONFIG_AVAILABLE:
+            self.client = OPENAI_CLIENT  # Use the pre-configured client from openai_api.py
+            self.base_url = "https://litellm.eks-ans-se-dev.aws.automotive.cloud/"
+            self.api_key = "sk-50qjfnJryCKT_Ku80l1c9w"
         else:
             self.base_url = base_url or os.getenv('OPENAI_BASE_URL', 'https://litellm.eks-ans-se-dev.aws.automotive.cloud/')
             self.api_key = api_key or os.getenv('OPENAI_API_KEY', 'sk-50qjfnJryCKT_Ku80l1c9w')
@@ -497,6 +502,8 @@ class LLMClient:
                 self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
             else:
                 self.client = None
+        
+        self.model_name = os.getenv('OPENAI_MODEL', 'gpt-5')
     
     def _quick_ecu_analysis(self, section_content: str, rule_text: str) -> Dict:
         """快速ECU分析 - 简化版本，仅作为LLM失败时的最小备用"""
@@ -598,19 +605,19 @@ Return ONLY the JSON, no other text."""
                     if self.client:
                         print(f"Calling LLM API... (attempt {attempt + 1}/{max_retries})")
                         response = self.client.chat.completions.create(
-                            model=OLLAMA_MODEL_NAME if OLLAMA_CONFIG_AVAILABLE else os.getenv('OPENAI_MODEL', 'gpt-5'),
+                            model=self.model_name,
                             messages=[
                                 {"role": "system", "content": "You are an expert automotive systems analyst."},
                                 {"role": "user", "content": prompt}
                             ],
                             temperature=0.0,
                             stream=False,
-                            timeout=30  # 30 second timeout
+                            timeout=10  # 10 second timeout for faster processing
                         )
                         result = response.choices[0].message.content.strip()
                     else:
                         print(f"Calling LLM HTTP API... (attempt {attempt + 1}/{max_retries})")
-                        result = self._call_ollama_http(prompt)
+                        result = self._call_openai_api(prompt)
                     
                     end_time = time.time()
                     print(f"LLM call completed in {end_time - start_time:.2f} seconds")
@@ -699,7 +706,7 @@ IMPORTANT: Do not show any thinking process, reasoning, or explanations. Output 
         if self.client:
             try:
                 response = self.client.chat.completions.create(
-                    model=OLLAMA_MODEL_NAME if OLLAMA_CONFIG_AVAILABLE else os.getenv('OPENAI_MODEL', 'gpt-5'),
+                    model=self.model_name,
                     messages=[
                         {"role": "system", "content": "You are an expert technical writer who specializes in automotive system requirements and EARS rules integration."},
                         {"role": "user", "content": instruction}
@@ -723,18 +730,18 @@ IMPORTANT: Do not show any thinking process, reasoning, or explanations. Output 
                 print(f"LLM API error: {e}")
                 return self._fallback_rewrite(section_paragraph, rule_condition, rule_response)
         else:
-            # Use HTTP request to Ollama API directly
+            # Use HTTP request to OpenAI API directly
             try:
-                return self._call_ollama_http(instruction)
+                return self._call_openai_api(instruction)
             except Exception as e:
                 print(f"HTTP LLM API error: {e}")
                 return self._fallback_rewrite(section_paragraph, rule_condition, rule_response)
     
-    def _call_ollama_http(self, instruction: str) -> str:
-        """Call Ollama API using HTTP requests."""
+    def _call_openai_api(self, instruction: str) -> str:
+        """Call OpenAI API using HTTP requests."""
         url = f"{self.base_url.rstrip('/')}/chat/completions"
         
-        selected_model = OLLAMA_MODEL_NAME if OLLAMA_CONFIG_AVAILABLE else os.getenv('OPENAI_MODEL', 'gpt-5')
+        selected_model = self.model_name
         payload = {
             "model": selected_model,
             "messages": [
@@ -798,6 +805,7 @@ IMPORTANT: Do not show any thinking process, reasoning, or explanations. Output 
     def analyze_section_for_rules(self, section_content: str, rules: List, threshold: float = 0.3) -> List[Dict]:
         """Analyze a section and find all matching EARS rules in one LLM call."""
         print(f"Analyzing section for all matching rules... (Section: {len(section_content)} chars)")
+        print(f"CHECKPOINT LLM-1: Starting LLM analysis with {len(rules)} rules")
         
         # Prepare rules text for LLM
         rules_text = "\n\n".join([f"Rule {rule.rule_idx}: {rule.original_text}" for rule in rules])
@@ -842,15 +850,16 @@ Return ONLY the JSON, no other text."""
         try:
             import time
             start_time = time.time()
+            print(f"CHECKPOINT LLM-2: About to make API call, timeout=60s")
             
             # Add retry mechanism for network issues
             max_retries = 3
             for attempt in range(max_retries):
                 try:
                     if self.client:
-                        print(f"Calling LLM API for section analysis... (attempt {attempt + 1}/{max_retries})")
+                        print(f"CHECKPOINT LLM-3: Calling LLM API for section analysis... (attempt {attempt + 1}/{max_retries})")
                         response = self.client.chat.completions.create(
-                            model=OLLAMA_MODEL_NAME if OLLAMA_CONFIG_AVAILABLE else os.getenv('OPENAI_MODEL', 'gpt-5'),
+                            model=self.model_name,
                             messages=[
                                 {"role": "system", "content": "You are an expert automotive systems analyst."},
                                 {"role": "user", "content": prompt}
@@ -860,12 +869,14 @@ Return ONLY the JSON, no other text."""
                             timeout=60  # 60 second timeout for complex analysis
                         )
                         result = response.choices[0].message.content.strip()
+                        print(f"CHECKPOINT LLM-4: API call successful, got response")
                     else:
-                        print(f"Calling LLM HTTP API for section analysis... (attempt {attempt + 1}/{max_retries})")
-                        result = self._call_ollama_http(prompt)
+                        print(f"CHECKPOINT LLM-3B: Calling LLM HTTP API for section analysis... (attempt {attempt + 1}/{max_retries})")
+                        result = self._call_openai_api(prompt)
+                        print(f"CHECKPOINT LLM-4B: HTTP API call successful, got response")
                     
                     end_time = time.time()
-                    print(f"LLM section analysis completed in {end_time - start_time:.2f} seconds")
+                    print(f"CHECKPOINT LLM-5: LLM section analysis completed in {end_time - start_time:.2f} seconds")
                     
                     # Parse JSON response
                     import json
@@ -938,6 +949,10 @@ class EARSInjector:
         matches = []
         
         print("Starting optimized section-based scanning...")
+        print("CHECKPOINT 1: Starting section analysis")
+        
+        section_count = 0
+        max_sections = 5  # Limit to 5 sections for speed
         
         for crd_file in crd_files:
             print(f"\nProcessing file: {crd_file.file_path.name}")
@@ -947,11 +962,20 @@ class EARSInjector:
                 if not re.search(r"\bECU\b|gateway|module|control unit|communication|CAN|LIN|arbitration", section.content, re.IGNORECASE):
                     continue
                 
-                print(f"\nAnalyzing section: {section.name}")
+                # Limit number of sections processed
+                section_count += 1
+                if section_count > max_sections:
+                    print(f"Reached limit of {max_sections} sections, stopping analysis")
+                    break
+                
+                print(f"\nAnalyzing section {section_count}/{max_sections}: {section.name}")
+                print(f"CHECKPOINT 2: About to call LLM for section {section_count}")
                 
                 try:
                     # Let LLM analyze the section and find matching rules
+                    print(f"CHECKPOINT 3: Calling analyze_section_for_rules...")
                     section_matches = self.llm_client.analyze_section_for_rules(section.content, self.rules, self.threshold)
+                    print(f"CHECKPOINT 4: LLM call completed, got {len(section_matches)} matches")
                     
                     if section_matches:
                         print(f"Found {len(section_matches)} matching rules for section {section.name}")
@@ -964,33 +988,36 @@ class EARSInjector:
                                 # Find best paragraph for injection
                                 paragraph, paragraph_score, status = section.find_best_paragraph(rule)
                             
-                                if paragraph:
-                                    match = {
-                                        'crd_file': crd_file.file_path.name,
-                                        'ecu_section': section.name,
-                                        'line_span': f"{section.start_line}-{section.end_line}",
-                                        'rule_idx': rule_idx,
-                                        'match_score': match_data['match_score'],
-                                        'ecu_analysis': match_data,
-                                        'status': status,
-                                        'matched_snippet': paragraph,
-                                        'section': section,
-                                        'rule': rule,
-                                        'paragraph': paragraph,
-                                        'match_type': 'llm_optimized',
-                                        'analysis_method': 'llm_optimized'
-                                    }
-                                    matches.append(match)
-                                    print(f"  Rule {rule_idx}: {match_data['match_score']:.3f}")
-                                else:
-                                    print(f"  Rule {rule_idx}: No suitable paragraph found")
+                            if paragraph:
+                                match = {
+                                    'crd_file': crd_file.file_path.name,
+                                    'ecu_section': section.name,
+                                    'line_span': f"{section.start_line}-{section.end_line}",
+                                    'rule_idx': rule_idx,
+                                    'match_score': match_data['match_score'],
+                                    'ecu_analysis': match_data,
+                                    'status': status,
+                                    'matched_snippet': paragraph,
+                                    'section': section,
+                                    'rule': rule,
+                                    'paragraph': paragraph,
+                                    'match_type': 'llm_optimized',
+                                    'analysis_method': 'llm_optimized'
+                                }
+                                matches.append(match)
+                                print(f"  Rule {rule_idx}: {match_data['match_score']:.3f}")
                             else:
-                                print(f"  Rule {rule_idx}: Rule not found")
+                                print(f"  Rule {rule_idx}: No suitable paragraph found")
+                        else:
+                            print(f"  Rule {rule_idx}: Rule not found")
                     else:
                         print(f"No matching rules found for section {section.name}")
                         
                 except Exception as e:
-                    print(f"Error analyzing section {section.name}: {e}")
+                    print(f"CHECKPOINT ERROR: Error analyzing section {section.name}: {e}")
+                    print(f"Error type: {type(e).__name__}")
+                    import traceback
+                    print(f"Traceback: {traceback.format_exc()}")
                     continue
         
         print(f"\nOptimized scanning complete! Found {len(matches)} matches")
@@ -1002,7 +1029,7 @@ class EARSInjector:
         llm_call_count = 0
         total_combinations = 0
         
-        # Count total combinations for progress tracking
+        # Count total combinations for progress tracking (use actual sections, not lines)
         for crd_file in crd_files:
             for section in crd_file.sections:
                 if re.search(r"\bECU\b|gateway|module|control unit", section.content, re.IGNORECASE):
@@ -1010,8 +1037,8 @@ class EARSInjector:
         
         print(f"Total rule-section combinations to analyze: {total_combinations}")
         
-        # No limit needed for quick matching
-        max_combinations = total_combinations
+        # Limit combinations to prevent excessive LLM calls  
+        max_combinations = min(total_combinations, 20)  # Limit to 20 calls max for speed
         
         for crd_file in crd_files:
             for section in crd_file.sections:
@@ -1025,7 +1052,10 @@ class EARSInjector:
                 for rule in self.rules:
                     llm_call_count += 1
                     
-                    # No limit for quick matching
+                    # Stop if we've reached the limit
+                    if llm_call_count > max_combinations:
+                        print(f"Reached limit of {max_combinations} LLM calls, stopping analysis")
+                        break
                     
                     print(f"Progress: {llm_call_count}/{min(total_combinations, max_combinations)} - Analyzing Rule {rule.rule_idx} in {section.name}")
                     
@@ -1055,8 +1085,8 @@ class EARSInjector:
                                     'analysis_method': 'llm'
                                 }
                                 section_matches.append(match)
-                        else:
-                            print(f"LLM No match (score: {ecu_analysis['match_score']:.3f})")
+                            else:
+                                print(f"LLM No match (score: {ecu_analysis['match_score']:.3f})")
                             
                     except Exception as e:
                         print(f"LLM analysis failed: {e}, falling back to quick analysis...")
@@ -1087,8 +1117,8 @@ class EARSInjector:
                                         'analysis_method': 'quick'
                                     }
                                     section_matches.append(match)
-                            else:
-                                print(f"Quick No match (score: {ecu_analysis['match_score']:.3f})")
+                                else:
+                                    print(f"Quick No match (score: {ecu_analysis['match_score']:.3f})")
                                 
                         except Exception as e2:
                             print(f"Both LLM and quick analysis failed: {e2}")
@@ -1099,6 +1129,10 @@ class EARSInjector:
                     section_matches.sort(key=lambda x: x['match_score'], reverse=True)
                     matches.append(section_matches[0])
                     print(f"Selected best match for {section.name}: Rule {section_matches[0]['rule_idx']} (score: {section_matches[0]['match_score']:.3f})")
+            
+            # Break outer loop if we've reached the limit
+            if llm_call_count > max_combinations:
+                break
         
         # Count analysis methods used
         llm_matches = len([m for m in matches if m.get('analysis_method') == 'llm'])
@@ -1112,13 +1146,16 @@ class EARSInjector:
     
     
     
-    def inject_rules_iterative(self, crd_files: List[CRDFile], max_iterations: int = 5) -> List[Dict]:
+    def inject_rules_iterative(self, crd_files: List[CRDFile], max_iterations: int = 5, initial_matches: List[Dict] = None) -> List[Dict]:
         """Iteratively inject rules: one error per iteration, 5 iterations total."""
         all_injected_results = []
         
-        # First, find all initial matches (only once to avoid repeated LLM calls)
-        print("Initial scan for all matches...")
-        initial_matches = self.find_matches(crd_files)
+        # Use provided matches or find new ones
+        if initial_matches is None:
+            print("Initial scan for all matches...")
+            initial_matches = self.find_matches(crd_files)
+        else:
+            print(f"Using provided {len(initial_matches)} matches for injection")
         
         if not initial_matches:
             print("No matches found in initial scan")
@@ -1402,15 +1439,18 @@ class EARSInjector:
         print(f"Rules file: {self.rules_file}")
         print(f"CRD directory: {crd_dir}")
         print(f"Threshold: {self.threshold}")
+        print("CHECKPOINT MAIN-1: Starting main process")
         print()
         
         # Scan CRD files
+        print("CHECKPOINT MAIN-2: Scanning CRD files...")
         crd_files = self.scan_crd_files(crd_dir)
         if not crd_files:
             print("No CRD files found.")
             return
         
         print(f"Found {len(crd_files)} CRD files")
+        print("CHECKPOINT MAIN-3: CRD files loaded successfully")
         print()
         
         # Find matches
@@ -1421,15 +1461,19 @@ class EARSInjector:
         for cf in crd_files:
             print(f"Sections in {cf.file_path.name}:")
             for sec in cf.sections:
-                print(f"- [{sec.start_line}-{sec.end_line}] {sec.name}")
+                # Handle Unicode characters in section names
+                safe_name = sec.name.encode('ascii', 'replace').decode('ascii')
+                print(f"- [{sec.start_line}-{sec.end_line}] {safe_name}")
         
-        matches = self.find_matches(crd_files)
+        # Use optimized method for faster processing
+        matches = self.find_matches_optimized(crd_files)
         print(f"Found {len(matches)} matches")
         print()
         
         # Inject rules iteratively
         print("Injecting rules using LLM (iterative approach)...")
-        injected_matches = self.inject_rules_iterative(crd_files, max_iterations=5)
+        print(f"CHECKPOINT MAIN-4: Using {len(matches)} matches for injection")
+        injected_matches = self.inject_rules_iterative(crd_files, max_iterations=5, initial_matches=matches)
         print(f"Processed {len(injected_matches)} matches across 5 iterations")
         # Concise test output: only show first injected item (if any)
         first_injected = next((m for m in injected_matches if m.get('status') in ('inject','limit_skipped')), None)
@@ -1439,9 +1483,13 @@ class EARSInjector:
             print(f"Section: {first_injected.get('ecu_section')}  Lines: {first_injected.get('line_span')}")
             print(f"Rule {first_injected['rule_idx']}: {first_injected['rule'].original_text}")
             print("--- Original Paragraph ---")
-            print(first_injected.get('paragraph','')[:2000])
+            original_para = first_injected.get('paragraph','')[:2000]
+            safe_original = original_para.encode('ascii', 'replace').decode('ascii')
+            print(safe_original)
             print("--- Modified Paragraph ---")
-            print(first_injected.get('injected_paragraph','')[:2000])
+            modified_para = first_injected.get('injected_paragraph','')[:2000]
+            safe_modified = modified_para.encode('ascii', 'replace').decode('ascii')
+            print(safe_modified)
             print("===============================\n")
         
         # Generate outputs
@@ -1515,8 +1563,9 @@ def main():
             for cf in crd_files:
                 print(f"Sections in {cf.file_path.name}:")
                 for sec in cf.sections:
-                    print(f"- [{sec.start_line}-{sec.end_line}] {sec.name}")
-            matches = injector.find_matches(crd_files)
+                    safe_name = sec.name.encode('ascii', 'replace').decode('ascii')
+                    print(f"- [{sec.start_line}-{sec.end_line}] {safe_name}")
+            matches = injector.find_matches_optimized(crd_files)
             print(f"Found {len(matches)} matches")
             
             # 统计分析方法使用情况
@@ -1538,7 +1587,7 @@ def main():
             
             print()
             print("Injecting rules using LLM...")
-            injected_matches = injector.inject_rules(matches)
+            injected_matches = injector.inject_rules_iterative(crd_files, max_iterations=5, initial_matches=matches)
             print(f"Processed {len(injected_matches)} matches")
             first_injected = next((m for m in injected_matches if m.get('status') in ('inject','limit_skipped')), None)
             if first_injected:
@@ -1547,9 +1596,13 @@ def main():
                 print(f"Section: {first_injected.get('ecu_section')}  Lines: {first_injected.get('line_span')}")
                 print(f"Rule {first_injected['rule_idx']}: {first_injected['rule'].original_text}")
                 print("--- Original Paragraph ---")
-                print(first_injected.get('paragraph','')[:2000])
+                original_para = first_injected.get('paragraph','')[:2000]
+                safe_original = original_para.encode('ascii', 'replace').decode('ascii')
+                print(safe_original)
                 print("--- Modified Paragraph ---")
-                print(first_injected.get('injected_paragraph','')[:2000])
+                modified_para = first_injected.get('injected_paragraph','')[:2000]
+                safe_modified = modified_para.encode('ascii', 'replace').decode('ascii')
+                print(safe_modified)
                 print("--- Related EARS Rules ---")
                 print(f"Rule {first_injected['rule_idx']}: {first_injected['rule'].original_text}")
                 print("===============================\n")
