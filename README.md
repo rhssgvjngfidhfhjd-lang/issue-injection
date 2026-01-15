@@ -1,92 +1,73 @@
+# Issue Injection
+
+## Project Overview
+Issue Injection is a specialized tool for injecting EARS (Easy Approach to Requirements Syntax) rules into automotive Component Requirement Documents (CRD). The tool utilizes a deterministic Mutation Engine ($\Phi_{mutate}$) and a local LLM engine to perform controlled document corruption, enabling verifiable "ground truth" for requirement verification systems.
+
+## Core Features
+- **Deterministic Mutation Engine ($\Phi_{mutate}$)**: Implements explicit mutation operators including numeric perturbation, procedural step reordering, and action omission.
+- **EARS Rule Formalization**: Supports the structured rule format $R = \langle O, C, R_{esp} \rangle$ (Object, Condition, Expected Response) for precise requirement mapping.
+- **Ground Truth Traceability**: Automatically maps injected defects back to the original EARS rule components (O/C/R_esp) in the output reports.
+- **Hybrid Processing**: Combines programmatic mutation for logic control with LLM polishing for linguistic fluency, ensuring document quality without losing logic precision.
+- **GPU-Accelerated Inference**: Optimized for NVIDIA A100 hardware using local Ollama service and custom port binding.
+- **CRD Structure Recognition**: Automated identification of ECU components and operational conditions via regex-based scanning.
 
 ## Quick Start
 
 ### Prerequisites
-1. **Install Python dependencies**:
+- **OS**: Linux (Ubuntu 22.04+ recommended)
+- **Python**: 3.10+
+- **LLM Runtime**: Ollama (configured for GPU access)
+- **Hardware**: NVIDIA GPU (A100 80GB recommended)
+
+### Installation
+1. **Install Dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Install and setup Ollama**:
+2. **Start GPU-Enabled LLM Service**
+   Use the provided startup script to link CUDA libraries and bind the service to port 11435:
    ```bash
-   # Install Ollama (visit https://ollama.ai/ for installation instructions)
-   # Pull the required Qwen model (optimized for this project)
-   ollama pull qwen3:8b
+   bash start_ollama_gpu.sh
    ```
 
-3. **Start Ollama service**:
-   ```bash
-   ollama serve
-   ```
+## Usage
 
-### For New Users
-1. **Run the demo script** to test the tool with sample data:
-   ```bash
-   python3 demo.py
-   ```
-   This interactive demo will guide you through the basic functionality.
-
-2. **CRD File Placement**: 
-   - For **demo**: Use the local `Issue-Injection/CRD/` folder (contains sample files for testing)
-   - For **real usage**: Place your actual CRD files in `/home/lexi/CRD/` (default production directory)
-
-### Project Structure
-```
-project-root/
-├── Issue-Injection/        # Main project folder
-│   ├── inject_ears.py      # Main injection script
-│   ├── run_injection.py    # Simplified runner
-│   ├── demo.py             # Interactive demo
-│   ├── EARSrules.txt       # EARS rules definition
-│   ├── requirements.txt    # Python dependencies
-│   ├── CRD/                # Sample CRD files (for demo/testing only)
-│   │   └── Sample_ECU_Function_Specification.txt
-│   └── README.md
-└── /home/lexi/CRD/         # Production CRD documents directory (default)
-    └── Your_Actual_CRD_Files.txt
-```
-
-## Advanced Usage
-
-### Document Parsing Features
-
-- The script performs intelligent document parsing based on numbered headings and section titles:
-  - Supports `1-1`, `1-1-1`, `1.1`, `1.1.1` numbering styles
-  - Requires space and title text after section numbers
-  - Preserves uppercase module titles and `#` Markdown headings
-- Automatic Table of Contents (TOC) filtering:
-  - Filters out TOC/front matter based on dot leaders, short content, and numbering patterns
-  - Starts processing from the first substantial numbered section (usually chapter 1)
-- All parsing and matching happens in memory - no temporary files created
-- Section titles and line ranges are displayed during processing for verification
-
-### Example Output During Processing
-
+### Rule Configuration
+Define rules in `EARSrules.txt` using the structured format for maximum control:
 ```text
-Finding matches between rules and CRD sections...
-Total sections: 16
-Sections in Sample_ECU_Function_Specification.txt:
-- [15-20] 1. Document Information
-- [25-35] 2. System Overview  
-- [40-60] 3. Functional Specifications
-- [65-95] 3-1. Gateway Function Control
-...
+O: ECU_A; C: IF ECU_A sends request 1; R_esp: THEN ECU_B shall reject; MUTATION: numeric_perturbation
+```
+*Note: Legacy "IF-THEN" format is still supported but will default to autonomous LLM rewriting.*
+
+### Execution
+Run the main injection process:
+```bash
+python3 main.py --rules EARSrules.txt --crd-dir ./CRD --model qwen3:8b
 ```
 
-## Configuration
+### Environment Configuration
+The tool defaults to port 11435 for the GPU-bound Ollama instance. You can override this via environment variables:
+```bash
+export OLLAMA_HOST=http://localhost:11435
+```
 
-### LLM Model Settings
-- **Model**: Uses `qwen3:8b` for all LLM operations
-- **Anti-thinking optimization**: Prompts are optimized to prevent Qwen from outputting thinking processes
-- **JSON parsing**: Robust parsing with automatic cleaning of any thinking content
+## Configuration Parameters
+| Parameter | Description | Default |
+| :--- | :--- | :--- |
+| `--rules` | Path to EARS rules definition file | `EARSrules.txt` |
+| `--crd-dir` | Directory containing source CRD documents | `./CRD` |
+| `--output-dir` | Directory for generated results | `./output_run` |
+| `--model` | LLM model name used for text polishing | `qwen3:8b` |
+| `--threshold` | Minimum score threshold for rule matching | `0.3` |
 
-### Path Configuration
-- **Demo mode**: Uses local `./CRD` folder for sample files
-- **Production mode**: Uses `/home/lexi/CRD` folder (default production directory)
-- **Custom paths**: Use `--crd-dir` argument to specify custom CRD location
+## Output Specification
+Upon completion, the output directory contains:
+- **injected.md**: Comprehensive report including **Ground Truth Mapping** (O/C/R_esp), applied mutation types, and before/after comparisons.
+- **patches/**: Standard `.patch` files recording the specific changes made to each document.
+- **_patched/**: Full document copies with mutations applied for direct integration or testing.
 
-### Advanced Options
-- **Threshold adjustment**: Modify matching sensitivity in the scripts
-- **Custom section filtering**: Use `--section-filter` regex patterns
-- **Rule selection**: Use `--rule-idx` to test specific rules
-- **Output formats**: Generate trace files, patches, or complete modified documents
+## Notes
+- **Data Security**: All processing is strictly local. No requirement data or document content is transmitted outside the host machine.
+- **Logic Integrity**: Programmatic mutation ensures that core technical defects (e.g., timing changes, step omissions) are deterministic and reproducible.
+- **Performance**: On A100 hardware, each injection cycle takes approximately 2-5 seconds. Ensure the Ollama service is fully initialized before running the main script.
