@@ -142,6 +142,24 @@ The system includes recovery mechanisms:
 - Safe mode operations
 - Error logging for diagnostic purposes
 
+6. ECU Communication Timing
+==========================
+
+6-1. ECU A to ECU B Communication
+================================
+
+When ECU A sends a request to ECU B, it shall follow these timing requirements:
+1) ECU A send request to stop other communicate to ECU B;
+2) ECU A send request to start process to ECU B;
+3) ECU A send request to check the status of process to ECU B;
+4) ECU A wait for 500ms before send next request to ECU B.
+
+6-2. ECU B Response Handling
+===========================
+
+Upon receiving a request from ECU A, ECU B shall process the request and respond.
+ECU B response with positive response to ECU A after successful validation.
+
 Note: This is a simplified sample document created for testing purposes.
 Real CRD documents would contain much more detailed specifications,
 timing diagrams, and comprehensive technical details.

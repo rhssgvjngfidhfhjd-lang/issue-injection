@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 IF ECU A wait for less than a certain time before send next request to ECU B THEN ECU B can not handle the request.
 
 IF ECU A sends a request to  ECU B start a process without previously sending a request to ECU B to stop other communications, THEN the system shall reject the request to start the process.
@@ -28,3 +29,9 @@ IF the ECU A executes the step "ECU A send request to ECU B when ECU B is ready"
 IF the specification omits the explicit waiting step "if ECU B is not ready, wait for n second" THEN the ECU A shall assume ECU B is not ready and shall delay sending the request until ECU B confirms readiness.
 
 IF ECU A does not strictly follow the sequence "1) ECU A received request from Server; 2) ECU A check status of ECU B; 3) if ECU B is not ready, wait for n second; 4) ECU A send request to ECU B when ECU B is ready; 5) response the Server with data collected from ECU B" THEN the system shall raise a timeout error and report wait response timeout handling.
+=======
+O: ECU_A; C: ECU A wait for 500ms before send next request to ECU B; R_esp: ECU B shall reject the request; MUTATION: numeric_perturbation
+O: ECU_A; C: 1) ECU A send request to stop other communicate to ECU B; 2) ECU A send request to start process to ECU B; R_esp: ECU A shall treat the process sequence as invalid; MUTATION: step_reorder
+O: ECU_B; C: ECU B response with positive response to ECU A; R_esp: ECU B shall reject the sequence and report a sequence error; MUTATION: action_omission
+O: ECU_A; C: IF ECU A sends request 1 to ECU B THEN ECU B shall reject; MUTATION: llm_rewrite
+>>>>>>> Stashed changes

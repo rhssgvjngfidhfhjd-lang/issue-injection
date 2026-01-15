@@ -5,9 +5,14 @@ __pycache__/
 *.pyd
 
 # Output directories and files
+output*/
 patches/
 _patched/
 *.patch
+injected.md
+issue_injection_trace.txt
+run.log
+ollama_gpu_debug.log
 
 # Temporary files
 .DS_Store
