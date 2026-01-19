@@ -14,8 +14,8 @@ except ImportError:
 from check_utils import truncate_to_word_limit
 from ears_parsing import EARSRule
 
-# 处理CRD文档的各个章节
-# 表示 CRD 文件的一个章节，包含内容、行号等信息。
+# Process CRD document sections
+# Represents a section of a CRD file, containing content, line numbers, etc.
 class CRDSection:
     """Represents a section of a CRD file."""
     
@@ -27,14 +27,14 @@ class CRDSection:
         self.paragraphs = self._split_paragraphs()
         self.llm_client = llm_client
     
-    # 将章节内容分割成段落。
+    # Split section content into paragraphs.
     def _split_paragraphs(self) -> List[str]:
         """Split section content into paragraphs."""
         # Split by double newlines or significant whitespace
         paragraphs = re.split(r'\n\s*\n', self.content.strip())
         return [p.strip() for p in paragraphs if p.strip()]
     
-    # 启发式方法检测段落是否像表格/列表/图表，若是则不注入长文本。
+    # Heuristic method to detect if paragraph is table-like/list/figure, if so do not inject long text.
     def _is_table_like(self, paragraph: str) -> bool:
         """Heuristic to detect tables/lists/figures where we should not inject long text."""
         lines = paragraph.split('\n')
@@ -77,7 +77,7 @@ class CRDSection:
 
         return False
     
-    # 检查段落是否有足够的上下文进行规则注入。
+    # Check if paragraph has sufficient context for rule injection.
     def _has_sufficient_context(self, paragraph: str) -> bool:
         """Check if paragraph has sufficient context for rule injection."""
         # Must have minimum length to contain meaningful context
@@ -96,7 +96,7 @@ class CRDSection:
         
         return True
     
-    # 寻找最适合注入规则的段落。
+    # Find the best paragraph for rule injection.
     def find_best_paragraph(self, rule: EARSRule) -> Tuple[str, float, str]:
         """Find the best paragraph for rule injection."""
         best_paragraph = ""
@@ -127,7 +127,7 @@ class CRDSection:
         
         return best_paragraph, best_score, best_status
     
-    # 对段落进行评分，判断其是否适合注入规则。
+    # Score paragraph to determine if it is suitable for rule injection.
     def _score_paragraph(self, paragraph: str, rule: EARSRule) -> float:
         """Score a paragraph for rule injection suitability."""
         score = 0.0
@@ -149,15 +149,15 @@ class CRDSection:
         
         return min(score, 1.0)
 
-    # 扫描章节中的 ECU 组件和附近的条件/事件（使用 LLM）。
+    # Scan for ECU components and nearby conditions/events in the section (using LLM).
     def scan_ecu_and_conditions(self) -> List[Dict]:
         """Scan for ECU components and nearby conditions/events in the section."""
         # For performance reasons with local LLM, default to regex/heuristic scan
         return self._fallback_scan_ecu_and_conditions()
     
-    # 使用 LLM 智能扫描 ECU 组件和条件。
+    # Use LLM to intelligently scan ECU components and conditions.
     def _llm_scan_ecu_and_conditions(self) -> List[Dict]:
-        """使用LLM智能扫描ECU组件和条件"""
+        """Use LLM to intelligently scan ECU components and conditions"""
         ecu_conditions = []
         
         # Build LLM prompt for ECU and condition identification
@@ -194,20 +194,20 @@ IMPORTANT: Do not show any thinking process or reasoning. Return ONLY the final 
 If no ECU found in text content, return only: {{"ecu_components": []}}"""
         
         try:
-            # 调用LLM进行智能识别
+            # Call LLM for intelligent identification
             response = self.llm_client._call_ollama_api(prompt)
             
-            # 解析LLM响应并转换为ecu_conditions格式
+            # Parse LLM response and convert to ecu_conditions format
             ecu_conditions = self._parse_llm_ecu_response(response)
             return ecu_conditions
             
         except Exception as e:
-            print(f"LLM扫描出错: {e}")
+            print(f"LLM scan error: {e}")
             return ecu_conditions
     
-    # 解析 LLM 的 ECU 识别响应。
+    # Parse LLM's ECU identification response.
     def _parse_llm_ecu_response(self, llm_response: str) -> List[Dict]:
-        """解析LLM的ECU识别响应"""
+        """Parse LLM's ECU identification response"""
         ecu_conditions = []
         
         try:
@@ -235,7 +235,7 @@ If no ECU found in text content, return only: {{"ecu_components": []}}"""
                 
                 for component in ecu_components:
                     raw_line = component.get('ecu_line', '')
-                    # 尝试从字符串中提取数字行号
+                    # Try to extract numeric line number from string
                     line_num = None
                     if isinstance(raw_line, int):
                         line_num = raw_line
@@ -247,7 +247,7 @@ If no ECU found in text content, return only: {{"ecu_components": []}}"""
                             except Exception:
                                 line_num = None
                     ecu_conditions.append({
-                        'ecu_line': line_num,  # 可能为None，后续使用时做兜底
+                        'ecu_line': line_num,  # May be None, handle fallback when used later
                         'ecu_text': component.get('ecu_name', 'Unknown ECU'),
                         'ecu_matches': [component.get('ecu_name', 'Unknown ECU')],
                         'context_lines': [component.get('context', 'No context')],
@@ -257,18 +257,18 @@ If no ECU found in text content, return only: {{"ecu_components": []}}"""
                     })
                     
         except json.JSONDecodeError as e:
-            print(f"JSON解析失败: {e}")
+            print(f"JSON parsing failed: {e}")
         except Exception as e:
-            print(f"解析LLM响应失败: {e}")
+            print(f"Failed to parse LLM response: {e}")
         
         return ecu_conditions
         
-    # 备用 ECU 扫描方法（基于正则表达式）。
+    # Fallback ECU scanning method (based on regex).
     def _fallback_scan_ecu_and_conditions(self) -> List[Dict]:
-        """备用ECU扫描方法（基于正则表达式）"""
+        """Fallback ECU scanning method (based on regex)"""
         ecu_conditions = []
         
-        # 原有的正则表达式逻辑作为备用方案
+        # Original regex logic as fallback
         ecu_patterns = [
             r'ECU\s',  # ECU, ECU, etc.
             r'[A-Z]+\s+ECU',  # Ventilated seat ECU, Steering heater ECU, etc.
@@ -314,7 +314,7 @@ If no ECU found in text content, return only: {{"ecu_components": []}}"""
         return ecu_conditions
 
 
-# 表示一个带有章节的 CRD 文件。
+# Represents a CRD file with sections.
 class CRDFile:
     """Represents a CRD file with sections."""
     
@@ -324,7 +324,7 @@ class CRDFile:
         self.llm_client = llm_client
         self.sections = self._split_sections()
     
-    # 读取文件内容，支持 UTF-8 和 latin-1 编码。
+    # Read file content, supports UTF-8 and latin-1 encoding.
     def _read_file(self) -> str:
         """Read file content with UTF-8 encoding."""
         try:
@@ -335,7 +335,7 @@ class CRDFile:
             with open(self.file_path, 'r', encoding='latin-1') as f:
                 return f.read()
     
-    # 根据标题将文件分割成章节。
+    # Split file into sections based on headings.
     def _split_sections(self) -> List[CRDSection]:
         """Split file into sections based on headings."""
         sections = []
@@ -390,9 +390,9 @@ class CRDFile:
                 "Entire Document", self.content, 1, len(lines), self.llm_client
             ))
         
-        # 过滤疑似目录（TOC）分段：靠前页、带大量点线、仅编号无标题、内容极短
+        # Filter TOC-like sections: early pages, many dots, numbered only without title, very short content
         def _is_toc_like_section(sec: CRDSection) -> bool:
-            # 仅在文档前若干行内考虑目录
+            # Only consider TOC within first few lines of document
             if sec.start_line > 250:
                 return False
             # Skip sections with too many dots (TOC markers)
@@ -400,12 +400,12 @@ class CRDFile:
                 return False
             return True
         
-        # 进一步：从第一个"实质性编号标题"开始截断，丢弃其之前的所有分段
+        # Further: truncate from first "substantive numbered heading", discard all sections before it
         def _is_substantive_numbered_heading(name: str, content: str) -> bool:
-            # 形如 1-1. Title 或 1.1 Title 或 1-1-1. Title 等，且有较充分内容
+            # Forms like 1-1. Title or 1.1 Title or 1-1-1. Title, etc., with sufficient content
             if re.match(r"^\d+(?:[.-]\d+){0,3}\.?\s+.+$", name.strip()):
                 content_lines = [ln for ln in content.split('\n') if ln.strip()]
-                # 内容行数阈值（正文应较长）
+                # Content line count threshold (body text should be longer)
                 if len(content_lines) >= 5 or len(content) >= 400:
                     return True
             return False
@@ -418,7 +418,7 @@ class CRDFile:
         if first_idx is not None and first_idx > 0:
             sections = sections[first_idx:]
         
-        # 再次截断：从第一个以“1-”或“1.”开头的实质性编号标题开始（通常正文第一章）
+        # Truncate again: from first substantive numbered heading starting with "1-" or "1." (usually Chapter 1 of body text)
         def _starts_with_chapter_one(name: str) -> bool:
             return re.match(r"^1(?:[.-]\d+){0,3}\.?(?:\s+.+)?$", name.strip()) is not None
         first_ch1_idx = None

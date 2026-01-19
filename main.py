@@ -35,7 +35,7 @@ from ears_parsing import EARSRule
 from crd_processing import CRDFile, CRDSection
 from mutation_ops import MutationEngine
 
-# EARS 规则注入的主类。
+# Main class for EARS rule injection.
 class EARSInjector:
     """Main class for EARS rule injection."""
     
@@ -47,7 +47,7 @@ class EARSInjector:
         self.llm_client = LLMClient(similarity_threshold=self.similarity_threshold, model=model_name)
         self.matches = []
     
-    # 从文件中解析 EARS 规则。
+    # Parse EARS rules from file.
     def _parse_rules(self) -> List[EARSRule]:
         """Parse EARS rules from file."""
         if not self.rules_file.exists():
@@ -66,7 +66,7 @@ class EARSInjector:
         
         return rules
     
-    # 扫描目录中的 CRD 文本文件。
+    # Scan directory for CRD text files.
     def scan_crd_files(self, crd_dir: str = ".") -> List[CRDFile]:
         """Scan directory for CRD text files."""
         crd_files = []
@@ -83,7 +83,7 @@ class EARSInjector:
         
         return crd_files
     
-    # 寻找规则和 CRD 章节之间的匹配项。
+    # Find matches between rules and CRD sections.
     def find_matches(self, crd_files: List[CRDFile]) -> List[Dict]:
         """Find matches between rules and CRD sections."""
         matches = []
@@ -136,7 +136,7 @@ class EARSInjector:
         
         return matches
     
-    # 为规则寻找最佳的基于 ECU 的匹配。
+    # Find best ECU-based match for rule.
     def _find_best_ecu_match(self, ecu_conditions: List[Dict], rule: EARSRule, section: CRDSection, crd_filename: str) -> Optional[Dict]:
         """Find the best ECU-based match for a rule."""
         best_match = None
@@ -185,7 +185,7 @@ class EARSInjector:
         
         return best_match
     
-    # 评分规则中的 ECU 与章节中的 ECU 的匹配程度。
+    # Score how well ECU in rule matches ECU in section.
     def _score_ecu_match(self, ecu_cond: Dict, rule: EARSRule) -> float:
         """Score how well ECU in rule matches ECU in section."""
         score = 0.0
@@ -218,7 +218,7 @@ class EARSInjector:
         
         return min(score, 1.0)
     
-    # 分析 EARS 规则中的 ECU 模式。
+    # Analyze ECU pattern in EARS rule.
     def _analyze_rule_ecu_pattern(self, rule: EARSRule) -> Dict:
         """Analyze ECU pattern in EARS rule."""
         rule_text = rule.original_text
@@ -255,7 +255,7 @@ class EARSInjector:
             'interaction_patterns': interaction_patterns
         }
     
-    # 分析 CRD 章节中的 ECU 模式。
+    # Analyze ECU pattern in CRD section.
     def _analyze_section_ecu_pattern(self, ecu_cond: Dict) -> Dict:
         """Analyze ECU pattern in CRD section."""
         context_text = ecu_cond['context_text']
@@ -292,7 +292,7 @@ class EARSInjector:
             'interaction_patterns': interaction_patterns
         }
     
-    # 评分规则和章节之间交互模式的匹配程度。
+    # Score how well interaction patterns match between rule and section.
     def _score_interaction_pattern_match(self, rule_info: Dict, section_info: Dict) -> float:
         """Score how well interaction patterns match between rule and section."""
         score = 0.0
@@ -313,7 +313,7 @@ class EARSInjector:
         
         return min(score, 1.0)
     
-    # 评分规则中的条件与章节中条件的匹配程度。
+    # Score how well conditions in rule match conditions in section.
     def _score_condition_match(self, ecu_cond: Dict, rule: EARSRule) -> float:
         """Score how well condition in rule matches conditions in section."""
         score = 0.0
@@ -352,7 +352,7 @@ class EARSInjector:
         
         return min(score, 1.0)
     
-    # 分析 EARS 规则中的条件模式。
+    # Analyze condition pattern in EARS rule.
     def _analyze_rule_condition_pattern(self, rule: EARSRule) -> Dict:
         """Analyze condition pattern in EARS rule."""
         condition_text = rule.condition.lower()
@@ -377,7 +377,7 @@ class EARSInjector:
             'condition_types': condition_types
         }
     
-    # 分析 CRD 章节中的条件模式。
+    # Analyze condition pattern in CRD section.
     def _analyze_section_condition_pattern(self, ecu_cond: Dict) -> Dict:
         """Analyze condition pattern in CRD section."""
         context_text = ecu_cond['context_text'].lower()
@@ -402,7 +402,7 @@ class EARSInjector:
             'condition_types': condition_types
         }
     
-    # 对章节针对规则进行评分。
+    # Score section against rule.
     def _score_section(self, section: CRDSection, rule: EARSRule) -> float:
         """Score a section against a rule."""
         # Regex matches (condition only) + fuzzy similarity
@@ -416,7 +416,7 @@ class EARSInjector:
         # Emphasize condition presence; remove response consideration
         return min(condition_matches * 0.6 + similarity * 0.4, 1.0)
     
-    # 将规则注入到匹配的章节中。
+    # Inject rules into matched sections.
     def inject_rules(self, matches: List[Dict]) -> List[Dict]:
         """Inject rules into matched sections. Limit to top 5 injections per run."""
         injected_results = []
@@ -499,7 +499,7 @@ class EARSInjector:
         
         return injected_results
     
-    # 生成输出文件和补丁。
+    # Generate output files and patches.
     def generate_outputs(self, matches: List[Dict], output_dir: str = "output", apply_patches: bool = False):
         """Generate output files and patches."""
         output_path = Path(output_dir)
@@ -521,7 +521,7 @@ class EARSInjector:
         self._generate_patches(matches, patches_dir, patched_dir, apply_patches)
     
     
-    # 将注入结果写入 Markdown 文件。
+    # Write injection results to Markdown file.
     def _write_injected_md(self, matches: List[Dict], output_file: Path):
         """Write injection results to Markdown file."""
         with open(output_file, 'w', encoding='utf-8') as f:
@@ -577,7 +577,7 @@ class EARSInjector:
         
         print(f"Injection results written to: {output_file}")
     
-    # 生成补丁文件并可选择应用它们。
+    # Generate patch files and optionally apply them.
     def _generate_patches(self, matches: List[Dict], patches_dir: Path, patched_dir: Path, apply_patches: bool):
         """Generate patch files and optionally apply them."""
         # Group by file
@@ -680,7 +680,7 @@ class EARSInjector:
                 
                 print(f"Patched file written to: {patched_file}")
     
-    # 运行完整的 EARS 注入流程。
+    # Run the complete EARS injection process.
     def run(self, crd_dir: str = ".", output_dir: str = "output", apply_patches: bool = False):
         """Run the complete EARS injection process."""
         print("=" * 60)
@@ -705,7 +705,7 @@ class EARSInjector:
         
         # Find matches
         print("Finding matches between rules and CRD sections...")
-        # 打印各 section 标题与行号
+        # Print section titles and line numbers
         total_sections = sum(len(cf.sections) for cf in crd_files)
         print(f"Total sections: {total_sections}")
         for cf in crd_files:
@@ -749,7 +749,7 @@ class EARSInjector:
         print("=" * 60)
 
 
-# 主入口点函数。
+# Main entry point function.
 def main():
     """Main entry point."""
     # Tee stdout/stderr to output/run.log (assumes output/ already exists)

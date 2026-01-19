@@ -5,12 +5,12 @@ import requests
 from typing import Optional, List, Dict, Tuple, Any
 from check_utils import truncate_to_word_limit, calculate_similarity, check_similarity_threshold
 
-# 用于与本地 LLM 端点交互的客户端。
+# Client for interacting with local LLM endpoint.
 class LLMClient:
     """Client for interacting with local LLM endpoint (Optimized for A100 GPU)."""
     
     def __init__(self, base_url: str = None, api_key: str = None, similarity_threshold: float = 0.8, model: Optional[str] = None):
-        # 1. 确定 Base URL：按照 传入参数 > 环境变量 > 11435 GPU端口 的顺序选择
+        # 1. Determine Base URL: priority order: parameter > environment variable > 11435 GPU port
         self.base_url = (
             base_url or 
             os.getenv('OLLAMA_BASE_URL') or 
@@ -21,7 +21,7 @@ class LLMClient:
         self.api_key = api_key or os.getenv('OLLAMA_API_KEY', '')
         self.model = model or os.getenv('OLLAMA_MODEL')
         
-        # 2. 自动检测模型 (优先从 11435 端口获取)
+        # 2. Auto-detect model (prefer from 11435 port)
         if not self.model:
             try:
                 tags_url = f"{self.base_url}/api/tags"
@@ -102,21 +102,21 @@ class LLMClient:
             + instruction
         )
         
-        # 核心配置：加入 num_gpu 强制启用 A100
+        # Core configuration: add num_gpu to force A100 usage
         payload = {
             "model": self.model,
             "prompt": prompt,
             "stream": True,
             "options": {
-                "num_predict": 128,    # A100 处理速度快，可以稍微增加预测长度
+                "num_predict": 128,    # A100 processing is fast, can slightly increase prediction length
                 "temperature": 0.4,
-                "keep_alive": "10m",   # 保持模型在显存中更久
-                "num_gpu": 99,         # 关键：强制 99 层全放入 GPU (A100 完全够用)
-                "num_thread": 8        # 限制 CPU 线程，倒逼 GPU 处理
+                "keep_alive": "10m",   # Keep model in GPU memory longer
+                "num_gpu": 99,         # Key: force all 99 layers into GPU (A100 has enough capacity)
+                "num_thread": 8        # Limit CPU threads to force GPU processing
             }
         }
 
-        # 针对 DeepSeek 的优化
+        # Optimization for DeepSeek
         if self.model and "deepseek" in str(self.model).lower():
             try:
                 payload["options"]["think"] = "low"
@@ -141,10 +141,10 @@ class LLMClient:
             
         content = ''.join(content_parts).strip()
         
-        # 清理思考过程标签和 Markdown 块
+        # Clean thinking process tags and Markdown blocks
         content = re.sub(r'<(thinking|think)>.*?</\1>', '', content, flags=re.DOTALL | re.IGNORECASE)
         content = re.sub(r'```.*?```', '', content, flags=re.DOTALL)
-        # 移除常见的对话引导语
+        # Remove common conversational prefixes
         content = re.sub(r'^(Okay|Sure|Here is|Polished paragraph:|Rewritten paragraph:).*?:\s*', '', content, flags=re.IGNORECASE | re.MULTILINE)
         return truncate_to_word_limit(content.strip(), 500)
     

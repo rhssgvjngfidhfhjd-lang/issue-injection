@@ -71,3 +71,6 @@ Upon completion, the output directory contains:
 - **Data Security**: All processing is strictly local. No requirement data or document content is transmitted outside the host machine.
 - **Logic Integrity**: Programmatic mutation ensures that core technical defects (e.g., timing changes, step omissions) are deterministic and reproducible.
 - **Performance**: On A100 hardware, each injection cycle takes approximately 2-5 seconds. Ensure the Ollama service is fully initialized before running the main script.
+
+## 
+python3 main.py --crd-dir ./CRD --output-dir output
