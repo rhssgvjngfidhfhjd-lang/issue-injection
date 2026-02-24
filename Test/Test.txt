@@ -1,0 +1,20 @@
+--- Original Paragraph --- 
+3-1. gateway function control (1) control objective
+
+Based on the operation information in IDS and remote function, the drive of ventilated seat ECU and steering heater ECU is controlled.
+
+The actual operation state and failure state are received from the ventilated seat ECU and the steering heater ECU, and the display is instructed to the IDS (the customer is notified).
+
+
+
+RULE 1: IF ECU A waits for less than a certain time before sending next request to ECU B THEN ECU B can not handle the request. A certain time comes from the target ECU in CRD
+--- Original Paragraph --- 
+3-1. gateway function control (1) control objective
+
+Based on the operation information in IDS and remote function, the drive of ventilated seat ECU and steering heater ECU is controlled.
+
+The actual operation state and failure state are received from the ventilated seat ECU and the steering heater ECU, and the display is instructed to the IDS (the customer is notified).
+
+
+
+RULE 1: IF ECU A waits for less than a certain time before sending next request to ECU B THEN ECU B can not handle the request. A certain time comes from the target ECU in CRD

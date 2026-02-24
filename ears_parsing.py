@@ -18,11 +18,9 @@ class EARSRule:
         self.normalized_condition = self._normalize_condition()
     
     def _parse_rule(self):
-        """Parse rule string, supporting both legacy IF-THEN and new structured format."""
+        """Parse rule string: either O/C/R_esp structured format or IF-THEN format."""
         text = self.original_text
-        
-        # Enhanced heuristic: if it starts with or contains O: or C: at the start of a semicolon part
-        if re.search(r'(^|;)\s*(O:|C:)', text):
+        if re.match(r"^\s*O\s*:", text, re.IGNORECASE):
             self._parse_structured_format(text)
         elif "THEN" in text:
             self._parse_legacy_format(text)
@@ -30,19 +28,38 @@ class EARSRule:
             raise ValueError(f"Invalid EARS rule format: {self.original_text}")
 
     def _parse_structured_format(self, text: str):
-        """Parse structured format: O: ...; C: ...; R_esp: ...; MUTATION: ..."""
-        # Split by semicolons
-        parts = [p.strip() for p in text.split(';') if p.strip()]
-        
-        for part in parts:
-            if part.startswith("O:"):
-                self.object = part[2:].strip()
-            elif part.startswith("C:"):
-                self.condition = part[2:].strip()
-            elif part.startswith("R_esp:"):
-                self.response = part[6:].strip()
-            elif part.startswith("MUTATION:"):
-                self.mutation_type = part[9:].strip()
+        """Parse O: ...; C: ...; [R_esp: ...;] MUTATION: ... format. R_esp is optional."""
+        # Full format: O; C; R_esp; MUTATION
+        m = re.match(
+            r"O\s*:\s*(.+?)\s*;\s*C\s*:\s*(.+?)\s*;\s*R_esp\s*:\s*(.+?)\s*;\s*MUTATION\s*:\s*(.+)$",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if m:
+            self.object = m.group(1).strip()
+            self.condition = m.group(2).strip()
+            self.response = m.group(3).strip()
+            self.mutation_type = m.group(4).strip().lower() or "llm_rewrite"
+            return
+        # Short format: O; C; MUTATION (no R_esp). If C contains "THEN", split it.
+        m2 = re.match(
+            r"O\s*:\s*(.+?)\s*;\s*C\s*:\s*(.+?)\s*;\s*MUTATION\s*:\s*(.+)$",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if m2:
+            self.object = m2.group(1).strip()
+            c_val = m2.group(2).strip()
+            self.mutation_type = m2.group(3).strip().lower() or "llm_rewrite"
+            if " THEN " in c_val.upper():
+                parts = re.split(r"\s+THEN\s+", c_val, maxsplit=1, flags=re.IGNORECASE)
+                self.condition = parts[0].replace("IF", "").strip()
+                self.response = parts[1].strip() if len(parts) > 1 else ""
+            else:
+                self.condition = c_val
+                self.response = ""
+            return
+        raise ValueError(f"Invalid structured rule format: {text}")
 
     def _parse_legacy_format(self, text: str):
         """Parse legacy IF ... THEN ... format."""

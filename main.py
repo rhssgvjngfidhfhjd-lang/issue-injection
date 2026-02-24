@@ -33,7 +33,6 @@ except ImportError:
 from api import LLMClient
 from ears_parsing import EARSRule
 from crd_processing import CRDFile, CRDSection
-from mutation_ops import MutationEngine
 
 # Main class for EARS rule injection.
 class EARSInjector:
@@ -66,21 +65,31 @@ class EARSInjector:
         
         return rules
     
-    # Scan directory for CRD text files.
+    # Scan directory for CRD files (.txt or .json).
     def scan_crd_files(self, crd_dir: str = ".") -> List[CRDFile]:
-        """Scan directory for CRD text files."""
+        """Scan directory for CRD files (.txt or .json). Also accepts a single file path."""
         crd_files = []
         crd_path = Path(crd_dir)
-        
-        # Look for .txt files in the specified directory
-        for txt_file in crd_path.glob("*.txt"):
+
+        # Single file: if path points to a .json or .txt file, load it
+        if crd_path.is_file() and crd_path.suffix.lower() in (".txt", ".json"):
             try:
-                crd_file = CRDFile(txt_file, self.llm_client)
+                crd_file = CRDFile(crd_path, self.llm_client)
                 crd_files.append(crd_file)
-                print(f"Loaded CRD file: {txt_file.name}")
+                print(f"Loaded CRD file: {crd_path.name}")
             except Exception as e:
-                print(f"Error loading {txt_file}: {e}")
-        
+                print(f"Error loading {crd_path}: {e}")
+            return crd_files
+
+        # Directory: look for .json and .txt files
+        for ext in ("*.json", "*.txt"):
+            for f in crd_path.glob(ext):
+                try:
+                    crd_file = CRDFile(f, self.llm_client)
+                    crd_files.append(crd_file)
+                    print(f"Loaded CRD file: {f.name}")
+                except Exception as e:
+                    print(f"Error loading {f}: {e}")
         return crd_files
     
     # Find matches between rules and CRD sections.
@@ -108,23 +117,31 @@ class EARSInjector:
                             continue
                         score = self._score_section(section, rule)
                         
-                        if score >= self.threshold:
+                        if score >= 0:
                             # Find best paragraph for injection
                             paragraph, paragraph_score, status = section.find_best_paragraph(rule)
                             
                             if paragraph:
+                                elem_id = section.get_element_id_for_paragraph(paragraph)
+                                sec_id = getattr(section, "section_id", None)
+                                if elem_id and sec_id:
+                                    line_span = f"{sec_id}:{elem_id}"
+                                else:
+                                    line_span = f"{section.start_line}-{section.end_line}"
                                 match = {
-                                    'crd_file': crd_file.file_path.name,
-                                    'ecu_section': section.name,
-                                    'line_span': f"{section.start_line}-{section.end_line}",
-                                    'rule_idx': rule.rule_idx,
-                                    'match_score': score,
-                                    'status': status,
-                                    'matched_snippet': paragraph,
-                                    'section': section,
-                                    'rule': rule,
-                                    'paragraph': paragraph,
-                                    'match_type': 'fallback'
+                                    "crd_file": crd_file.file_path.name,
+                                    "ecu_section": section.name,
+                                    "line_span": line_span,
+                                    "section_id": sec_id,
+                                    "element_id": elem_id,
+                                    "rule_idx": rule.rule_idx,
+                                    "match_score": score,
+                                    "status": status,
+                                    "matched_snippet": paragraph,
+                                    "section": section,
+                                    "rule": rule,
+                                    "paragraph": paragraph,
+                                    "match_type": "fallback",
                                 }
                                 section_matches.append(match)
                 
@@ -152,35 +169,41 @@ class EARSInjector:
             # Combined score
             total_score = ecu_match_score * 0.6 + condition_match_score * 0.4
             
-            if total_score > best_score and total_score >= self.threshold:
+            if total_score > best_score and total_score >= 0:
                 best_score = total_score
                 
                 # Find the best paragraph for injection
                 paragraph, paragraph_score, status = section.find_best_paragraph(rule)
                 
                 if paragraph:
-                    start_line = ecu_cond.get('ecu_line')
-                    if isinstance(start_line, int):
-                        end_line_val = start_line + len(ecu_cond.get('context_lines', []))
-                        line_span = f"{start_line}-{end_line_val}"
+                    element_id = ecu_cond.get("element_id")
+                    section_id = ecu_cond.get("section_id") or getattr(section, "section_id", None)
+                    if element_id and section_id:
+                        line_span = f"{section_id}:{element_id}"
                     else:
-                        line_span = section.start_line if hasattr(section, 'start_line') else ''
-                        line_span = f"{line_span}-{getattr(section, 'end_line', '')}"
+                        start_line = ecu_cond.get("ecu_line")
+                        if isinstance(start_line, int):
+                            end_line_val = start_line + len(ecu_cond.get("context_lines", []))
+                            line_span = f"{start_line}-{end_line_val}"
+                        else:
+                            line_span = f"{section.start_line}-{section.end_line}"
                     best_match = {
-                        'crd_file': crd_filename,
-                        'ecu_section': section.name,
-                        'ecu_context': ecu_cond,
-                        'line_span': line_span,
-                        'rule_idx': rule.rule_idx,
-                        'match_score': total_score,
-                        'ecu_match_score': ecu_match_score,
-                        'condition_match_score': condition_match_score,
-                        'status': status,
-                        'matched_snippet': paragraph,
-                        'section': section,
-                        'rule': rule,
-                        'paragraph': paragraph,
-                        'match_type': 'ecu_based'
+                        "crd_file": crd_filename,
+                        "ecu_section": section.name,
+                        "ecu_context": ecu_cond,
+                        "line_span": line_span,
+                        "section_id": section_id,
+                        "element_id": element_id,
+                        "rule_idx": rule.rule_idx,
+                        "match_score": total_score,
+                        "ecu_match_score": ecu_match_score,
+                        "condition_match_score": condition_match_score,
+                        "status": status,
+                        "matched_snippet": paragraph,
+                        "section": section,
+                        "rule": rule,
+                        "paragraph": paragraph,
+                        "match_type": "ecu_based",
                     }
         
         return best_match
@@ -450,38 +473,11 @@ class EARSInjector:
                     print(f"Processing injection {injections_done + 1}/{len(inject_candidates)} for rule {match['rule_idx']} in {match['crd_file']}...")
                     
                     rule = match['rule']
-                    section_context = match['section'].content[:800]  # Include more context for timing analysis
-                    
-                    # Determine injection strategy based on mutation type
-                    if rule.mutation_type != "llm_rewrite":
-                        print(f"Applying explicit mutation: {rule.mutation_type}")
-                        mutated_text, details, success = MutationEngine.apply_mutation(
-                            match['paragraph'], 
-                            rule.mutation_type, 
-                            rule.condition
-                        )
-                        match['mutation_details'] = details
-                        
-                        if success:
-                            # Polish the mutated text with LLM
-                            rewritten = self.llm_client.polish_text(mutated_text, rule.condition)
-                        else:
-                            # Fallback to LLM rewrite if mutation failed (e.g. number not found)
-                            print(f"Mutation failed ({details}), falling back to LLM rewrite.")
-                            match['mutation_details'] += " (Fallback to LLM)"
-                            rewritten = self.llm_client.rewrite_with_llm(
-                                match['paragraph'],
-                                rule.condition,
-                                section_context
-                            )
-                    else:
-                        # Legacy behavior
-                        match['mutation_details'] = "LLM autonomous rewrite"
-                        rewritten = self.llm_client.rewrite_with_llm(
-                            match['paragraph'],
-                            rule.condition,
-                            section_context
-                        )
+                    match['mutation_details'] = "Minimal mid-sentence injection"
+                    rewritten = self.llm_client.rewrite_with_llm(
+                        match['paragraph'],
+                        rule.original_text,
+                    )
                     
                     # Normalize terminology and EARS style
                     rewritten = rewritten.replace('ventilated sheet ECU', 'ventilated seat ECU')
@@ -521,62 +517,121 @@ class EARSInjector:
         self._generate_patches(matches, patches_dir, patched_dir, apply_patches)
     
     
-    # Write injection results to Markdown file.
+    def _write_injected_summary(self, matches: List[Dict], f) -> None:
+        """Write Summary block (consistent with injected.md format)."""
+        f.write("# EARS Rule Injection Results\n\n")
+        f.write("## Summary\n\n")
+        f.write(f"Total matches found: {len(matches)}\n")
+        f.write(f"Rules injected: {len([m for m in matches if m['status'] == 'inject'])}\n")
+        f.write(f"Rules already exist: {len([m for m in matches if m['status'] == 'exists'])}\n")
+        f.write(f"Rules skipped due to limit: {len([m for m in matches if m['status'] == 'limit_skipped'])}\n\n")
+
+    def _write_injected_match_section(self, match: Dict, f) -> None:
+        """Write one match section (Rule details, Status, Injected/Original content)."""
+        rule = match["rule"]
+        f.write(f"### Rule {match['rule_idx']}: {match['ecu_section']}\n\n")
+        f.write(f"**Status:** {match['status']}\n\n")
+        f.write(f"**Match Score:** {match['match_score']:.3f}\n\n")
+        f.write("#### EARS Rule Details (Ground Truth)\n")
+        f.write(f"- **Target Object (O):** {rule.object}\n")
+        f.write(f"- **Defect Condition (C):** {rule.condition}\n")
+        f.write(f"- **Expected Erroneous Response (R_esp):** {rule.response}\n")
+        f.write(f"- **Applied Mutation:** {rule.mutation_type}\n")
+        if "mutation_details" in match:
+            f.write(f"- **Mutation Details:** {match['mutation_details']}\n")
+        f.write("\n")
+        if "match_type" in match:
+            f.write(f"**Match Type:** {match['match_type']}\n\n")
+        f.write(f"**Location:** {match['line_span']}\n\n")
+        if match["status"] == "inject":
+            f.write("**Injected Content:**\n\n")
+            f.write(f"{match['injected_paragraph']}\n\n")
+            f.write("**Original Context:**\n")
+            f.write(f"{match['matched_snippet']}\n\n")
+        else:
+            f.write("**Existing Content:**\n\n")
+            f.write(f"{match['paragraph']}\n\n")
+        f.write("---\n\n")
+
     def _write_injected_md(self, matches: List[Dict], output_file: Path):
         """Write injection results to Markdown file."""
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write("# EARS Rule Injection Results\n\n")
-            f.write("## Summary\n\n")
-            f.write(f"Total matches found: {len(matches)}\n")
-            f.write(f"Rules injected: {len([m for m in matches if m['status'] == 'inject'])}\n")
-            f.write(f"Rules already exist: {len([m for m in matches if m['status'] == 'exists'])}\n")
-            f.write(f"Rules skipped due to limit: {len([m for m in matches if m['status'] == 'limit_skipped'])}\n\n")
-            
-            # Group by file
+        with open(output_file, "w", encoding="utf-8") as f:
+            self._write_injected_summary(matches, f)
             files = {}
             for match in matches:
-                if match['crd_file'] not in files:
-                    files[match['crd_file']] = []
-                files[match['crd_file']].append(match)
-            
+                if match["crd_file"] not in files:
+                    files[match["crd_file"]] = []
+                files[match["crd_file"]].append(match)
             for filename, file_matches in files.items():
                 f.write(f"## {filename}\n\n")
-                
                 for match in file_matches:
-                    rule = match['rule']
-                    f.write(f"### Rule {match['rule_idx']}: {match['ecu_section']}\n\n")
-                    f.write(f"**Status:** {match['status']}\n\n")
-                    f.write(f"**Match Score:** {match['match_score']:.3f}\n\n")
-                    
-                    # EARS Rule Details (Ground Truth)
-                    f.write("#### EARS Rule Details (Ground Truth)\n")
-                    f.write(f"- **Target Object (O):** {rule.object}\n")
-                    f.write(f"- **Defect Condition (C):** {rule.condition}\n")
-                    f.write(f"- **Expected Erroneous Response (R_esp):** {rule.response}\n")
-                    f.write(f"- **Applied Mutation:** {rule.mutation_type}\n")
-                    if 'mutation_details' in match:
-                        f.write(f"- **Mutation Details:** {match['mutation_details']}\n")
-                    f.write("\n")
-                    
-                    if 'match_type' in match:
-                        f.write(f"**Match Type:** {match['match_type']}\n\n")
-                    
-                    f.write(f"**Location:** Lines {match['line_span']}\n\n")
-                    
-                    if match['status'] == 'inject':
-                        f.write("**Injected Content:**\n\n")
-                        f.write(f"{match['injected_paragraph']}\n\n")
-                        
-                        f.write("**Original Context:**\n")
-                        f.write(f"{match['matched_snippet']}\n\n")
-                    else:
-                        f.write("**Existing Content:**\n\n")
-                        f.write(f"{match['paragraph']}\n\n")
-                    
-                    f.write("---\n\n")
-        
+                    self._write_injected_match_section(match, f)
         print(f"Injection results written to: {output_file}")
     
+    def _generate_patches_json(
+        self,
+        original_file: Path,
+        filename: str,
+        file_matches: List[Dict],
+        patches_dir: Path,
+        patched_dir: Path,
+        apply_patches: bool,
+    ):
+        """Generate patches for JSON CRD files by updating element text fields."""
+        with open(original_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        doc = data.get("parsed_document", data)
+        sections = doc.get("sections", [])
+
+        def find_element(sec_id: str, elem_id: str):
+            for sec in sections:
+                if str(sec.get("id", "")) == str(sec_id):
+                    for el in sec.get("elements", []):
+                        if str(el.get("id", "")) == str(elem_id):
+                            return sec, el
+            return None, None
+
+        patch_lines = []
+        for match in file_matches:
+            if match["status"] != "inject":
+                continue
+            sec_id = match.get("section_id")
+            elem_id = match.get("element_id")
+            if not sec_id or not elem_id:
+                continue
+            sec, el = find_element(sec_id, elem_id)
+            if el is None:
+                print(f"Warning: Element {sec_id}:{elem_id} not found in {filename}")
+                continue
+            old_text = el.get("text", "")
+            new_text = match["injected_paragraph"]
+            if old_text == new_text:
+                continue
+            el["text"] = new_text
+            if el.get("body_html") is not None:
+                el["body_html"] = new_text
+            patch_lines.append(f"@@ -{match['line_span']} @@")
+            patch_lines.append(f"-{old_text}")
+            patch_lines.append(f"+{new_text}")
+            patch_lines.append("")
+
+        if patch_lines:
+            patch_file = patches_dir / f"{filename}.patch"
+            with open(patch_file, "w", encoding="utf-8") as f:
+                f.write(f"--- {filename}\n")
+                f.write(f"+++ {filename}\n")
+                f.write("".join(patch_lines))
+            print(f"Patch written to: {patch_file}")
+
+        if apply_patches:
+            patched_file = patched_dir / f"{Path(filename).stem}.md"
+            with open(patched_file, "w", encoding="utf-8") as f:
+                self._write_injected_summary(file_matches, f)
+                f.write(f"## {filename}\n\n")
+                for match in file_matches:
+                    self._write_injected_match_section(match, f)
+            print(f"Patched file written to: {patched_file}")
+
     # Generate patch files and optionally apply them.
     def _generate_patches(self, matches: List[Dict], patches_dir: Path, patched_dir: Path, apply_patches: bool):
         """Generate patch files and optionally apply them."""
@@ -610,74 +665,70 @@ class EARSInjector:
             return -1
         
         for filename, file_matches in files.items():
-            # Read original file - look in CRD directory if it exists
+            # Resolve original file path
             original_file = Path(filename)
             if not original_file.exists():
-                # Try to find it in common locations
                 possible_paths = [
                     Path(filename),
                     Path("CRD") / filename,
-                    Path(".") / filename
+                    Path(".") / filename,
                 ]
-                original_file = None
                 for path in possible_paths:
                     if path.exists():
                         original_file = path
                         break
-                
-                if not original_file:
+                else:
                     print(f"Warning: Original file not found: {filename}")
                     continue
-            
-            with open(original_file, 'r', encoding='utf-8') as f:
-                original_content = f.read()
-            
-            # Apply patches
-            patched_content = original_content
+
+            is_json = str(filename).lower().endswith(".json")
+            if is_json:
+                self._generate_patches_json(
+                    original_file, filename, file_matches,
+                    patches_dir, patched_dir, apply_patches,
+                )
+                continue
+
+            # Plain text patch logic
+            with open(original_file, "r", encoding="utf-8") as f:
+                patched_content = f.read()
             patch_lines = []
-            
+
             for match in file_matches:
-                if match['status'] == 'inject':
-                    # Create patch
-                    original_para = match['paragraph']
-                    new_para = match['injected_paragraph']
-                    
-                    if original_para != new_para:
-                        # Find paragraph in file content
-                        para_start = patched_content.find(original_para)
-                        if para_start == -1:
-                            para_start = _fuzzy_find(patched_content, original_para)
-                        if para_start != -1:
-                            # Apply patch
-                            patched_content = (
-                                patched_content[:para_start] + 
-                                new_para + 
-                                patched_content[para_start + len(original_para):]
-                            )
-                            # Add to patch lines
-                            patch_lines.append(f"@@ -{match['line_span']} @@")
-                            patch_lines.append(f"-{original_para}")
-                            patch_lines.append(f"+{new_para}")
-                            patch_lines.append("")
-                        else:
-                            print(f"Warning: Fuzzy replace failed for: {filename} Rule {match['rule_idx']}")
-            
-            # Write patch file
+                if match["status"] != "inject":
+                    continue
+                original_para = match["paragraph"]
+                new_para = match["injected_paragraph"]
+                if original_para == new_para:
+                    continue
+                para_start = patched_content.find(original_para)
+                if para_start == -1:
+                    para_start = _fuzzy_find(patched_content, original_para)
+                if para_start != -1:
+                    patched_content = (
+                        patched_content[:para_start]
+                        + new_para
+                        + patched_content[para_start + len(original_para) :]
+                    )
+                    patch_lines.append(f"@@ -{match['line_span']} @@")
+                    patch_lines.append(f"-{original_para}")
+                    patch_lines.append(f"+{new_para}")
+                    patch_lines.append("")
+                else:
+                    print(f"Warning: Fuzzy replace failed for: {filename} Rule {match['rule_idx']}")
+
             if patch_lines:
                 patch_file = patches_dir / f"{filename}.patch"
-                with open(patch_file, 'w', encoding='utf-8') as f:
+                with open(patch_file, "w", encoding="utf-8") as f:
                     f.write(f"--- {filename}\n")
                     f.write(f"+++ {filename}\n")
                     f.write("".join(patch_lines))
-                
                 print(f"Patch written to: {patch_file}")
-            
-            # Write patched file if requested
+
             if apply_patches:
                 patched_file = patched_dir / filename
-                with open(patched_file, 'w', encoding='utf-8') as f:
+                with open(patched_file, "w", encoding="utf-8") as f:
                     f.write(patched_content)
-                
                 print(f"Patched file written to: {patched_file}")
     
     # Run the complete EARS injection process.
@@ -779,7 +830,11 @@ def main():
         pass
     parser = argparse.ArgumentParser(description="Inject EARS rules into CRD files using local LLM")
     parser.add_argument("--rules", default="EARSrules.txt", help="EARS rules file (default: EARSrules.txt)")
-    parser.add_argument("--crd-dir", default="/home/lexi/CRD", help="Directory containing CRD files (default: /home/lexi/CRD)")
+    parser.add_argument(
+        "--crd-dir",
+        default="CRD",
+        help="Directory containing CRD files (.txt/.json) or path to a single CRD file (default: CRD)",
+    )
     parser.add_argument("--output-dir", default="output", help="Output directory (default: output)")
     parser.add_argument("--threshold", type=float, default=0.3, help="Match threshold (default: 0.3)")
     parser.add_argument("--similarity-threshold", type=float, default=0.8, help="Similarity threshold for output validation (default: 0.8)")

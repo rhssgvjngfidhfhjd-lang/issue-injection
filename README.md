@@ -52,6 +52,26 @@ The tool defaults to port 11435 for the GPU-bound Ollama instance. You can overr
 export OLLAMA_HOST=http://localhost:11435
 ```
 
+### Call Local Ollama from Terminal
+Use `call_ollama.py` to ask questions in the terminal; it calls local `qwen2.5-coder:32b` by default and prints the answer.
+
+**Single question (positional):**
+```bash
+python3 call_ollama.py "你的问题"
+```
+
+**Pipe question from stdin:**
+```bash
+echo "你的问题" | python3 call_ollama.py
+```
+
+**Custom port (e.g. default Ollama 11434):**
+```bash
+python3 call_ollama.py --base-url http://127.0.0.1:11434 "你的问题"
+```
+
+Optional: `--stream` for streaming output, `--model` to use another model.
+
 ## Configuration Parameters
 | Parameter | Description | Default |
 | :--- | :--- | :--- |

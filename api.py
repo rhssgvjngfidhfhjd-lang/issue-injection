@@ -3,7 +3,7 @@ import re
 import json
 import requests
 from typing import Optional, List, Dict, Tuple, Any
-from check_utils import truncate_to_word_limit, calculate_similarity, check_similarity_threshold
+from check_utils import truncate_to_word_limit
 
 # Client for interacting with local LLM endpoint.
 class LLMClient:
@@ -42,63 +42,79 @@ class LLMClient:
         self.client = None
         print(f"LLMClient initialized. Target: {self.base_url}, Model: {self.model}")
     
-    def polish_text(self, mutated_text: str, rule_condition: str) -> str:
-        """
-        Polish the programmatically mutated text to ensure linguistic fluency.
-        Does NOT change the logic of the mutation.
-        """
-        mutated_text = truncate_to_word_limit(mutated_text, 300)
-        
-        instruction = (
-            "You are a technical editor. The following text has had a fault injected programmatically "
-            "(e.g., a number changed or a step reordered). Your task is to SMOOTH the text so it flows naturally "
-            "as valid English, BUT YOU MUST PRESERVE THE INJECTED FAULT logic exactly.\n"
-            "- Do NOT fix the logic error.\n"
-            "- Do NOT revert the numbers or order.\n"
-            "- Just fix grammar, capitalization, and flow.\n"
-            f"- The intended fault condition is related to: {rule_condition}\n\n"
-            f"Input Text:\n{mutated_text}\n\n"
-            "CRITICAL: Output ONLY the polished paragraph. No thinking process, no explanations, no conversational filler, no markdown blocks."
-        )
+    def _is_append_style(self, original_text: str, result: str) -> bool:
+        """Detect if result is append-style (original + new sentence) rather than mid-sentence insertion."""
+        if not result or not result.strip():
+            return False
+        ot = original_text.strip()
+        rt = result.strip()
+        if re.search(r"When\s+\w+\s+sends\s+a\s+request\s*,\s*if\s+", rt, re.IGNORECASE):
+            return True
+        if rt.startswith(ot) and len(rt) > len(ot) * 1.2:
+            return True
+        return False
+
+    def rewrite_with_llm(self, original_text: str, ears_rule: str) -> str:
+        """Inject EARS rule into Original Text using minimal mid-sentence editing prompt."""
+        original_text = truncate_to_word_limit(original_text, 300)
+        retry_prompt_suffix = "\n\nCRITICAL: You MUST insert a clause INSIDE an existing sentence. Do NOT append a new sentence at the end."
 
         try:
-            return self._call_ollama_api(instruction)
-        except Exception as e:
-            print(f"Polish error: {e}")
-            return mutated_text # Return original mutation if LLM fails
-
-    def rewrite_with_llm(self, section_paragraph: str, rule_condition: str, section_context: str = "") -> str:
-        """Legacy rewrite method for rules without explicit mutation type."""
-        section_paragraph = truncate_to_word_limit(section_paragraph, 300)
-        section_context = truncate_to_word_limit(section_context, 300)
-        
-        instruction = (
-            "Rewrite the technical paragraph to integrate ONLY the rule's condition (IF-part) "
-            "as natural descriptive text. Do not add requirements words (shall/must) or the THEN-part. "
-            "Map any placeholder ECUs (e.g., ECU A/B) to actual ECU names found in the text.\n\n"
-            f"Paragraph:\n{section_paragraph}\n\n"
-            f"Rule condition (IF-only): {rule_condition}\n\n"
-            f"Extra context:\n{section_context}\n\n"
-            "CRITICAL: Output ONLY the final rewritten paragraph. No thinking process, no explanations, no conversational filler, no markdown blocks."
-        )
-
-        try:
+            instruction = self._build_prompt_v2(original_text, ears_rule)
             result = self._call_ollama_api(instruction)
-            similarity = calculate_similarity(section_paragraph, result)
-            
-            if similarity < 0.3:
-                print(f"Similarity too low ({similarity:.2f}), using fallback")
-                return self._fallback_rewrite(section_paragraph, rule_condition)
+            if not result or not result.strip():
+                return self._fallback_rewrite(original_text, ears_rule)
+            if self._is_append_style(original_text, result):
+                instruction = self._build_prompt_v2(original_text, ears_rule) + retry_prompt_suffix
+                result = self._call_ollama_api(instruction)
+            if not result or not result.strip() or self._is_append_style(original_text, result):
+                return self._fallback_rewrite(original_text, ears_rule)
             return result
         except Exception as e:
             print(f"Ollama API error: {e}")
-            return self._fallback_rewrite(section_paragraph, rule_condition)
+            return self._fallback_rewrite(original_text, ears_rule)
+
+    def _build_prompt_v2(self, original_text: str, ears_rule: str) -> str:
+        """Build Prompt: Issue injection with minimal mid-sentence editing."""
+        return f"""You are doing "issue injection" into a CRD paragraph.
+
+Goal:
+Given (1) an EARS-style rule and (2) an original paragraph (original text),
+generate ONE injected paragraph by minimally editing the original text so that it naturally introduces the rule's defect condition / issue.
+
+Inputs
+[EARS_RULE]
+{ears_rule}
+
+[ORIGINAL_TEXT]
+{original_text}
+
+Output requirements
+1) Output ONLY the injected paragraph text. No explanation, no JSON.
+2) Keep all existing wording unchanged as much as possible. Prefer inserting a short clause *inside an existing sentence* (mid-sentence) rather than rewriting or adding a new sentence, unless impossible.
+3) The insertion point must be explicit and natural:
+   - Choose a single best insertion point in the original text (preferably in the middle of a sentence).
+   - Mimic the style of example1 (a "before …" clause embedded into an existing sentence).
+4) Do NOT change technical terms, IDs, ECU names, signal names, figure/table references, section numbering, or formatting (line breaks and bullet symbols).
+5) The injected content must reflect the rule precisely:
+   - Preserve actor ECUs and step ordering (e.g., "ECU B … before ECU C …").
+   - Only mention "reject / report sequence error" if it can be embedded naturally in the same sentence without making the paragraph awkward; otherwise inject only the ordering violation.
+6) Use formal specification tone.
+
+Rewrite strategy (must follow)
+- Locate the single best sentence in ORIGINAL_TEXT that can host the injection.
+- Insert one minimal clause (prefer "before …" / "prior to …") inside that sentence.
+- Keep all other text verbatim.
+
+Now generate the injected paragraph."""
     
     def _call_ollama_api(self, instruction: str) -> str:
         """Call native Ollama generate API with GPU force options."""
         url = f"{self.base_url}/api/generate"
         prompt = (
-            "You are an expert technical writer specializing in automotive system requirements.\n\n"
+            "You are a Senior Automotive System Architect with 10+ years of experience. "
+            "You are an expert in ISO 26262 standards and the precise language used in "
+            "System Requirement Specifications (SRS).\n\n"
             + instruction
         )
         
@@ -108,7 +124,7 @@ class LLMClient:
             "prompt": prompt,
             "stream": True,
             "options": {
-                "num_predict": 128,    # A100 processing is fast, can slightly increase prediction length
+                "num_predict": 1024,
                 "temperature": 0.4,
                 "keep_alive": "10m",   # Keep model in GPU memory longer
                 "num_gpu": 99,         # Key: force all 99 layers into GPU (A100 has enough capacity)
@@ -141,26 +157,115 @@ class LLMClient:
             
         content = ''.join(content_parts).strip()
         
-        # Clean thinking process tags and Markdown blocks
+        # Clean thinking process tags
         content = re.sub(r'<(thinking|think)>.*?</\1>', '', content, flags=re.DOTALL | re.IGNORECASE)
-        content = re.sub(r'```.*?```', '', content, flags=re.DOTALL)
+        # Extract content from markdown code blocks instead of deleting (qwen3 wraps output in ```)
+        code_block = re.search(r'```(?:\w*\n)?(.*?)```', content, re.DOTALL)
+        if code_block:
+            content = code_block.group(1).strip()
+        else:
+            content = re.sub(r'```', '', content)
         # Remove common conversational prefixes
         content = re.sub(r'^(Okay|Sure|Here is|Polished paragraph:|Rewritten paragraph:).*?:\s*', '', content, flags=re.IGNORECASE | re.MULTILINE)
         return truncate_to_word_limit(content.strip(), 500)
     
-    def _fallback_rewrite(self, section_paragraph: str, rule_condition: str) -> str:
-        """Simple fallback rewrite when LLM is unavailable."""
-        text = section_paragraph
+    def _extract_ocr_from_ears_rule(self, ears_rule: str) -> Tuple[str, str, str]:
+        """Extract O/C/R from ears_rule string for fallback. Returns (object, condition, response)."""
+        text = ears_rule.strip()
+        o, c, r = "System", "", ""
+        # Structured format: O: ...; C: ...; R_esp: ...
+        m = re.match(
+            r"O\s*:\s*(.+?)\s*;\s*C\s*:\s*(.+?)\s*;\s*R_esp\s*:\s*(.+?)(?:\s*;|\s*$)",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if m:
+            o, c, r = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+            return o, c, r
+        # Short format O; C; MUTATION with C containing THEN
+        m2 = re.match(
+            r"O\s*:\s*(.+?)\s*;\s*C\s*:\s*(.+?)\s*;\s*MUTATION\s*:\s*.+$",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if m2:
+            o = m2.group(1).strip()
+            c_val = m2.group(2).strip()
+            if " THEN " in c_val.upper():
+                parts = re.split(r"\s+THEN\s+", c_val, maxsplit=1, flags=re.IGNORECASE)
+                c = parts[0].replace("IF", "").strip()
+                r = parts[1].strip() if len(parts) > 1 else ""
+            else:
+                c, r = c_val, ""
+            return o, c, r
+        # Legacy IF ... THEN ... format
+        if "THEN" in text:
+            parts = text.split("THEN", 1)
+            c = parts[0].replace("IF", "").strip()
+            r = parts[1].strip() if len(parts) > 1 else ""
+            return "System", c, r
+        return o, c, r
+
+    def _ensure_before_min_length(self, before_clause: str, condition: str) -> str:
+        """If before clause content is too short (< 5 chars), use condition summary instead."""
+        content = before_clause[len("before "):] if before_clause.startswith("before ") else before_clause
+        if len(content.strip()) < 5:
+            c_short = re.sub(r"\s+", " ", condition)[:80].strip().strip("\"'").strip(",")
+            return "before " + c_short if c_short else "before the required step"
+        return before_clause
+
+    def _condition_to_before_clause(self, condition: str, ecu_mapping: Dict[str, str]) -> str:
+        """Convert EARS condition into a short 'before ...' clause for mid-sentence insertion."""
+        c = condition.strip()
+        for placeholder, actual in ecu_mapping.items():
+            c = c.replace(placeholder, actual)
+        c = re.sub(r"\bECU [A-Z]\b", "the other ECU", c)
+        # Extract "before X" if present
+        m = re.search(r"\bbefore\s+(.+?)(?:\.|$)", c, re.IGNORECASE | re.DOTALL)
+        if m:
+            return self._ensure_before_min_length("before " + m.group(1).strip(), c)
+        # "without first executing/without previously sending" -> "before [required step]"
+        m = re.search(r"without\s+(?:first\s+)?(?:executing\s+the\s+step\s+)?[\"']?(.+?)[\"']?\s*(?:THEN|$)", c, re.IGNORECASE | re.DOTALL)
+        if m:
+            return self._ensure_before_min_length("before " + m.group(1).strip(), c)
+        m = re.search(r"without\s+previously\s+(.+?)(?:,|\.|$)", c, re.IGNORECASE | re.DOTALL)
+        if m:
+            return self._ensure_before_min_length("before " + m.group(1).strip(), c)
+        # "omits the explicit step/omits the explicit waiting step X" -> "before X" (greedy capture, strip quotes)
+        m = re.search(r"omits\s+(?:the\s+explicit\s+(?:waiting\s+)?step\s+)?(.+)", c, re.IGNORECASE | re.DOTALL)
+        if m:
+            result = m.group(1).strip().strip("\"'")
+            return self._ensure_before_min_length("before " + result, c)
+        # Fallback: shorten to ~80 chars and wrap as "before ..."
+        c_short = re.sub(r"\s+", " ", c)[:80].strip().strip("\"'").strip(",")
+        return self._ensure_before_min_length("before " + c_short if c_short else "before the required step", c)
+
+    def _fallback_rewrite(self, original_text: str, ears_rule: str) -> str:
+        """Fallback rewrite with mid-sentence insertion when LLM is unavailable."""
+        o, c, r = self._extract_ocr_from_ears_rule(ears_rule)
+        text = original_text.strip()
         ecu_names = re.findall(r"\b([A-Za-z][A-Za-z \-/]* ECU)\b", text, re.IGNORECASE)
-        cond = re.sub(r"\b(shall|must|should|will)\b", "", rule_condition or "", re.IGNORECASE).strip()
-        
-        if ecu_names:
-            ecu_mapping = {f"ECU {chr(65+i)}": name for i, name in enumerate(ecu_names[:4])}
-            for placeholder, actual_name in ecu_mapping.items():
-                cond = cond.replace(placeholder, actual_name)
-            cond = re.sub(r"\bECU [A-Z]\b", "ECU", cond)
-        
-        if cond:
-            result = f"{text}\n{cond}" if not text.endswith("\n") else f"{text}{cond}"
-            return truncate_to_word_limit(result, 500)
-        return truncate_to_word_limit(text, 500)
+        ecu_mapping = {f"ECU {chr(65+i)}": name for i, name in enumerate(ecu_names[:4])}
+        ecu_mapping.update({f"ECU {chr(97+i)}": name for i, name in enumerate(ecu_names[:4])})
+
+        if not c:
+            return truncate_to_word_limit(text, 500)
+        before_clause = self._condition_to_before_clause(c, ecu_mapping)
+
+        # Split into sentences (keep period with sentence)
+        sentences = [s.strip() for s in re.split(r'(?<=\.)\s+', text) if s.strip()]
+        if not sentences:
+            return truncate_to_word_limit(text, 500)
+        # Pick longest sentence as host
+        host_idx = max(range(len(sentences)), key=lambda i: len(sentences[i]))
+        host = sentences[host_idx].rstrip()
+        if not host.endswith('.'):
+            host += '.'
+        # Insert "before ..." clause before the final period
+        if host.endswith('.'):
+            injected_host = host[:-1] + " " + before_clause + "."
+        else:
+            injected_host = host + " " + before_clause
+        sentences[host_idx] = injected_host
+        result = " ".join(sentences)
+        return truncate_to_word_limit(result, 500)

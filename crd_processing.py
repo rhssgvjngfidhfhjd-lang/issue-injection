@@ -14,19 +14,50 @@ except ImportError:
 from check_utils import truncate_to_word_limit
 from ears_parsing import EARSRule
 
+# Paragraphs containing any of these phrases are excluded from matching.
+# Matching is case-insensitive and literal (quotes are treated as characters).
+BLACKLIST_PHRASES = [
+    "SUZUKI LIN SPECIFICATION",
+]
+
 # Process CRD document sections
 # Represents a section of a CRD file, containing content, line numbers, etc.
 class CRDSection:
     """Represents a section of a CRD file."""
-    
-    def __init__(self, name: str, content: str, start_line: int, end_line: int, llm_client=None):
+
+    def __init__(
+        self,
+        name: str,
+        content: str,
+        start_line: int,
+        end_line: int,
+        llm_client=None,
+        paragraphs: Optional[List[str]] = None,
+        element_ids: Optional[List[str]] = None,
+        section_id: Optional[str] = None,
+    ):
         self.name = name
         self.content = content
         self.start_line = start_line
         self.end_line = end_line
-        self.paragraphs = self._split_paragraphs()
         self.llm_client = llm_client
-    
+        self.element_ids = element_ids  # For JSON: paragraph[i] <-> element_ids[i]
+        self.section_id = section_id  # For JSON: section id in parsed_document
+        if paragraphs is not None:
+            self.paragraphs = paragraphs
+        else:
+            self.paragraphs = self._split_paragraphs()
+
+    def get_element_id_for_paragraph(self, paragraph: str) -> Optional[str]:
+        """Return element id for a paragraph (JSON mode only)."""
+        if not self.element_ids:
+            return None
+        try:
+            idx = self.paragraphs.index(paragraph)
+            return self.element_ids[idx] if idx < len(self.element_ids) else None
+        except ValueError:
+            return None
+
     # Split section content into paragraphs.
     def _split_paragraphs(self) -> List[str]:
         """Split section content into paragraphs."""
@@ -95,7 +126,47 @@ class CRDSection:
             return False
         
         return True
-    
+
+    def _contains_blacklisted_phrase(self, paragraph: str) -> bool:
+        """Check if paragraph contains any blacklisted phrase."""
+        if not BLACKLIST_PHRASES:
+            return False
+        lowered = paragraph.lower()
+        for phrase in BLACKLIST_PHRASES:
+            if phrase and phrase.lower() in lowered:
+                return True
+        return False
+
+    def _is_valid_paragraph_structure(self, paragraph: str) -> bool:
+        """Check paragraph is a short prose block (<=3 sentences), not a glossary list."""
+        lines = [ln.strip() for ln in paragraph.split('\n') if ln.strip()]
+        # Glossary/definition-list heuristic: many lines, most without a period
+        if len(lines) >= 5:
+            lines_without_period = sum(1 for ln in lines if '.' not in ln)
+            if lines_without_period / len(lines) > 0.6:
+                return False
+        # Sentence count: split on period followed by space or end-of-string
+        sentences = [s.strip() for s in re.split(r'\.\s+|\.\s*$', paragraph) if s.strip()]
+        if len(sentences) > 3:
+            return False
+        return True
+
+    def _check_ecu_density(self, paragraph: str) -> Tuple[bool, bool]:
+        """Check ECU density per sentence.
+        Returns (passes_minimum, has_bonus):
+          passes_minimum: at least 1 sentence has >= 2 ECU references
+          has_bonus: >= 2 sentences each have >= 2 ECU references (auto-qualify)
+        """
+        ecu_pattern = re.compile(r'\bECU\b|\bECGW\b', re.IGNORECASE)
+        sentences = [s.strip() for s in re.split(r'\.\s+|\.\s*$', paragraph) if s.strip()]
+        rich_count = 0  # sentences with >= 2 ECU refs
+        for sent in sentences:
+            if len(ecu_pattern.findall(sent)) >= 2:
+                rich_count += 1
+        passes = rich_count >= 1
+        bonus = rich_count >= 2
+        return passes, bonus
+
     # Find the best paragraph for rule injection.
     def find_best_paragraph(self, rule: EARSRule) -> Tuple[str, float, str]:
         """Find the best paragraph for rule injection."""
@@ -110,7 +181,17 @@ class CRDSection:
             # Additional validation: ensure paragraph has sufficient context
             if not self._has_sufficient_context(paragraph):
                 continue
-            
+
+            # Skip paragraphs containing blacklisted phrases
+            if self._contains_blacklisted_phrase(paragraph):
+                continue
+
+            if not self._is_valid_paragraph_structure(paragraph):
+                continue
+            if not re.search(r'\bECU\b|\bECGW\b', paragraph, re.IGNORECASE):
+                continue
+            _, bonus = self._check_ecu_density(paragraph)
+
             # Check if paragraph already contains the condition (IF-part) only
             condition_matches = re.findall(rule.normalized_condition, paragraph, re.IGNORECASE)
             if condition_matches:
@@ -119,6 +200,8 @@ class CRDSection:
             
             # Score paragraph based on temporal/conditional cues and similarity
             score = self._score_paragraph(paragraph, rule)
+            if bonus:
+                score = max(score, 1.0)
             
             if score > best_score:
                 best_score = score
@@ -265,81 +348,157 @@ If no ECU found in text content, return only: {{"ecu_components": []}}"""
         
     # Fallback ECU scanning method (based on regex).
     def _fallback_scan_ecu_and_conditions(self) -> List[Dict]:
-        """Fallback ECU scanning method (based on regex)"""
+        """Fallback ECU scanning method (based on regex). For JSON mode, uses paragraphs and element_ids."""
         ecu_conditions = []
-        
-        # Original regex logic as fallback
         ecu_patterns = [
-            r'ECU\s',  # ECU, ECU, etc.
-            r'[A-Z]+\s+ECU',  # Ventilated seat ECU, Steering heater ECU, etc.
-            r'[A-Z]+\s'  #ECGW
+            r"ECU\s",
+            r"[A-Z]+\s+ECU",
+            r"ECGW",
         ]
-        
         condition_patterns = []
-        
-        lines = self.content.split('\n')
-        
+
+        if self.element_ids:
+            # JSON mode: iterate over paragraphs, store element_id
+            for i, paragraph in enumerate(self.paragraphs):
+                for pattern in ecu_patterns:
+                    ecu_matches = re.findall(pattern, paragraph, re.IGNORECASE)
+                    if ecu_matches:
+                        context_start = max(0, i - 2)
+                        context_end = min(len(self.paragraphs), i + 3)
+                        context_paras = self.paragraphs[context_start:context_end]
+                        context_text = "\n".join(context_paras)
+                        element_id = self.element_ids[i] if i < len(self.element_ids) else None
+                        ecu_conditions.append({
+                            "ecu_line": None,
+                            "element_id": element_id,
+                            "ecu_text": paragraph[:200],
+                            "ecu_matches": ecu_matches,
+                            "context_lines": context_paras,
+                            "context_text": context_text,
+                            "conditions": [],
+                            "section_name": self.name,
+                            "section_id": self.section_id,
+                        })
+                        break
+            return ecu_conditions
+
+        # Plain text mode
+        lines = self.content.split("\n")
         for i, line in enumerate(lines):
-            # Check for ECU mentions
             for pattern in ecu_patterns:
                 ecu_matches = re.findall(pattern, line, re.IGNORECASE)
                 if ecu_matches:
-                    # Look for nearby conditions in surrounding lines
                     context_start = max(0, i - 3)
                     context_end = min(len(lines), i + 4)
                     context_lines = lines[context_start:context_end]
-                    context_text = '\n'.join(context_lines)
-                    
-                    # Collect conditions only if patterns are configured
+                    context_text = "\n".join(context_lines)
                     conditions = []
                     if condition_patterns:
                         for cond_pattern in condition_patterns:
                             cond_matches = re.findall(cond_pattern, context_text, re.IGNORECASE)
                             for m in cond_matches:
                                 if isinstance(m, tuple):
-                                    conditions.append(' '.join([part for part in m if isinstance(part, str)]).strip())
+                                    conditions.append(
+                                        " ".join([p for p in m if isinstance(p, str)]).strip()
+                                    )
                                 else:
                                     conditions.append(str(m).strip())
-                    
                     ecu_conditions.append({
-                        'ecu_line': i + 1,
-                        'ecu_text': line.strip(),
-                        'ecu_matches': ecu_matches,
-                        'context_lines': context_lines,
-                        'context_text': context_text,
-                        'conditions': conditions,
-                        'section_name': self.name
+                        "ecu_line": i + 1,
+                        "ecu_text": line.strip(),
+                        "ecu_matches": ecu_matches,
+                        "context_lines": context_lines,
+                        "context_text": context_text,
+                        "conditions": conditions,
+                        "section_name": self.name,
                     })
-        
+                    break
         return ecu_conditions
 
 
 # Represents a CRD file with sections.
 class CRDFile:
     """Represents a CRD file with sections."""
-    
+
     def __init__(self, file_path: Path, llm_client=None):
-        self.file_path = file_path
-        self.content = self._read_file()
+        self.file_path = Path(file_path)
         self.llm_client = llm_client
+        raw = self._read_file()
+        if isinstance(raw, dict):
+            self._is_json = True
+            self._json_data = raw
+            self.content = self._build_content_from_json(raw)
+        else:
+            self._is_json = False
+            self._json_data = None
+            self.content = raw
         self.sections = self._split_sections()
-    
-    # Read file content, supports UTF-8 and latin-1 encoding.
-    def _read_file(self) -> str:
-        """Read file content with UTF-8 encoding."""
+
+    def _build_content_from_json(self, data: Dict) -> str:
+        """Build plain text content from JSON for downstream scoring."""
+        parts = []
+        doc = data.get("parsed_document", data)
+        for sec in doc.get("sections", []):
+            for el in sec.get("elements", []):
+                if el.get("type") == "text" and el.get("text"):
+                    parts.append(el["text"])
+        return "\n\n".join(parts)
+
+    # Read file content; returns str for .txt, dict for .json.
+    def _read_file(self) -> Any:
+        """Read file content. Returns str for text files, dict for JSON."""
+        suffix = self.file_path.suffix.lower()
+        if suffix == ".json":
+            with open(self.file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
         try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
+            with open(self.file_path, "r", encoding="utf-8") as f:
                 return f.read()
         except UnicodeDecodeError:
-            # Fallback to latin-1 if UTF-8 fails
-            with open(self.file_path, 'r', encoding='latin-1') as f:
+            with open(self.file_path, "r", encoding="latin-1") as f:
                 return f.read()
-    
-    # Split file into sections based on headings.
+
+    def _split_sections_from_json(self) -> List[CRDSection]:
+        """Build CRDSection list from parsed_document.sections."""
+        sections = []
+        doc = self._json_data.get("parsed_document", self._json_data)
+        for sec_data in doc.get("sections", []):
+            sec_id = str(sec_data.get("id", ""))
+            title = sec_data.get("title", f"Section {sec_id}")
+            text_elements = [
+                el for el in sec_data.get("elements", [])
+                if el.get("type") == "text" and (el.get("text") or "").strip()
+            ]
+            if not text_elements:
+                continue
+            paragraphs = [el["text"].strip() for el in text_elements]
+            element_ids = [str(el.get("id", "")) for el in text_elements]
+            content = "\n\n".join(paragraphs)
+            start_line = 1
+            end_line = len(element_ids)
+            sections.append(
+                CRDSection(
+                    name=title,
+                    content=content,
+                    start_line=start_line,
+                    end_line=end_line,
+                    llm_client=self.llm_client,
+                    paragraphs=paragraphs,
+                    element_ids=element_ids,
+                    section_id=sec_id,
+                )
+            )
+        return sections if sections else [
+            CRDSection("Entire Document", self.content, 1, 1, self.llm_client)
+        ]
+
+    # Split file into sections based on headings (txt) or parsed_document (json).
     def _split_sections(self) -> List[CRDSection]:
         """Split file into sections based on headings."""
+        if self._is_json and self._json_data:
+            return self._split_sections_from_json()
+
         sections = []
-        
         # Look for ECU/Component/Module headings or markdown #
         heading_patterns = [
             r'^\s*([A-Z][A-Z\s]+(?:ECU|Component|Module|Gateway|System)[A-Z\s]*)$',
